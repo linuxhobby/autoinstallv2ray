@@ -108,6 +108,11 @@ show_status() {
     clear
     _red "========== 当前作战部署状态 =========="
     if [ -f "$V2_CONF" ]; then
+            # 获取系统版本信息
+        local os_info="未知系统"
+        if [ -f /etc/os-release ]; then
+            os_info=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2)
+        fi
         _green "● V2Ray 状态: $(systemctl is-active v2ray)"
         _green "● Caddy 状态: $(systemctl is-active caddy 2>/dev/null || echo "未安装")"
         _green "● TCP 加速: $(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}' || echo "未知")"
@@ -126,6 +131,8 @@ show_status() {
         _blue "● UUID/密码: $uuid"
         [[ -n "$path" ]] && _blue "● 路径/服务名: $path"
         _blue "● 系统时间: $(date)"
+        # --- 新增：系统版本显示 ---
+        _blue "● 系统版本: $os_info"
         
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
@@ -241,13 +248,16 @@ EOF
 # --- 主循环控制台 ---
 while true; do
     clear
+    # --- 新增：获取系统版本信息 ---
+    OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v123                     \033[0m\n"
-    printf -- "\033[31m   测试环境：Debian12、Debian13、Ubuntu25         \033[0m\n"
+    printf -- "\033[31m   版本特征码：人生若只如初见v12345                     \033[0m\n"
+    printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
+    printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
-    printf -- "  2) 新增/更换配置 (17 协议阵列)\n"
+    printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
     printf -- "  q) 退出\n"
@@ -280,9 +290,9 @@ while true; do
                 current_link=$(get_link "$current_proto" "$current_uuid" "$current_domain" "$current_path" "$current_trans" "true")
                 _purple "$current_link"
                 printf -- "------------------------------------\n"
-                _red "警告：此操作将彻底销毁以上所有部署！"
-                printf -- "\033[31m确定执行撤除指令？(y/n): \033[0m" && read confirm_del
-                if [[ "$confirm_del" == "y" ]]; then
+                _red "警告：此操作将彻底销毁以上所有部署！【直接enter】默认不删除！"
+                printf -- "\033[31m确定执行撤除指令？(yes/no): \033[0m" && read confirm_del
+                if [[ "$confirm_del" == "yes" ]]; then
                     systemctl stop v2ray caddy 2>/dev/null
                     rm -rf $V2_DIR
                     rm -f $CADDY_FILE

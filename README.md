@@ -11,7 +11,7 @@ apt install wget
 ```
 然后执行  
 ```
-wget -O install.sh https://raw.githubusercontent.com/linuxhobby/auto-install-v2ray/master/install.sh && chmod +x install.sh && ./install.sh
+wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
 ```
 ---
 

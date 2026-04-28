@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 1. 定义带有时间戳的动态 URL，破解 GitHub CDN 缓存
-URL="https://raw.githubusercontent.com/linuxhobby/auto-install-v2ray/master/install.sh?v=$(date +%s)"
+URL="https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh?v=$(date +%s)"
 
 _yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }
 
