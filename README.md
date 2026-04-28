@@ -5,7 +5,7 @@
 如果没有安装wget，先安装wget
 ```
 apt update
-apt install wget
+apt install wget -y
 ```
 然后执行  
 ```
