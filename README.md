@@ -12,8 +12,15 @@ apt install wget
 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
 ```
 ---
+## 1. 脚本总结
+本脚本则是自定义的身定制版“**快速部署模板**”。
 
-## 1. 逻辑重构：从“流程化”转向“模块化”
+**核心优势：**
+1. **深度适配**：完美契合您的命名习惯与时区需求。
+2. **核心导向**：剥离所有非必要功能，仅保留最强悍的配置引擎。
+3. **阵地清理**：集成的 **资产清查（选项 3）** 功能具备联动销毁机制，在撤除部署时会一并清除 Caddy 反代设置，确保系统阵地的绝对洁净。
+
+## 2. 逻辑重构：从“流程化”转向“模块化”
 * **代码解耦**：原脚本多采用长流程线性嵌套，本脚本将核心逻辑的实现**函数化**。
     * 拆分为：环境初始化 (`init_system`)、配置生成 (`build_config`)、服务部署 (`deploy_services`) 及链接生成 (`get_link`)。
     * **战术意义**：当需要扩充第 18、19 种新协议时，仅需在 `case` 逻辑中追加参数，无需变动底层安装架构。
@@ -23,7 +30,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray
 
 ---
 
-## 2. 功能精简与聚焦
+## 3. 功能精简与聚焦
 * **剔除杂质**：彻底去除了常见的推广信息、广告以及复杂的第三方统计插件，确保脚本纯净、安全。
 * **环境预设**：强制同步 **上海时区**，毕竟这个脚本也只有大陆才会用到。
 * **依赖优化**：舍弃了复杂的跨发行版兼容性检测，精准聚焦于 **Debian/Ubuntu** 环境。
@@ -33,7 +40,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray
 
 ## 3. 脚本特点
 
-| 维度 | 本将军自持版 (当前脚本) |
+| 维度 | 特点 |
 | :--- | :--- |
 | **反向代理** | 切换为 **Caddy**，配置极简且实现证书自动申领 |
 | **减少供应链** | 切换为全部采用 **v2ray** 和 **Caddy** 的官方拉去资源，减少供应链 |
@@ -44,10 +51,3 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray
 
 ---
 
-## 4. 脚本总结
-本脚本则是自定义的身定制版“**快速部署模板**”。
-
-**核心优势：**
-1. **深度适配**：完美契合您的命名习惯与时区需求。
-2. **核心导向**：剥离所有非必要功能，仅保留最强悍的配置引擎。
-3. **阵地清理**：集成的 **资产清查（选项 3）** 功能具备联动销毁机制，在撤除部署时会一并清除 Caddy 反代设置，确保系统阵地的绝对洁净。
