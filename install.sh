@@ -298,7 +298,7 @@ while true; do
     printf -- "\033[32m   作者：linuxhobby 最后更新：2026/04/29          \033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
     printf -- "\033[34m   版本特征码：人生若只如初见v1.0.0.2               \033[0m\n"
-    printf -- "\033[35m   适用环境：Debian12/13、Ubuntu25/26             \033[0m\n"
+    printf -- "\033[32m   适用环境：Debian12/13、Ubuntu25/26             \033[0m\n"
     printf -- "\033[35m   当前阵地环境：$OS_NAME                         \033[0m\n" 
     printf -- "\033[37m=============================================== \033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
