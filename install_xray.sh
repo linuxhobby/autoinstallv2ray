@@ -6,6 +6,7 @@
 # 2. 完整保留源脚本的 BBR、vnstat 及所有颜色引擎源代码
 # 3. 严格锁定主菜单 1-5 战略序列，确保协议矩阵二级菜单绝对闭环
 # 4. 修复：强制 IPv4 提取逻辑，确保 macOS 客户端链接百分百可用
+# 5. https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/refs/heads/main/install_xray.sh
 # ====================================================
 
 # 核心版本与路径定义
@@ -221,7 +222,7 @@ deploy_menu() {
         printf -- "  1) VLESS-REALITY-Vision (直连王牌)\n"
         printf -- "  2) VLESS-gRPC-TLS (Caddy 正式联动)\n"
         printf -- "  3) Trojan-WS/gRPC-TLS (模拟网页)\n"
-        printf -- "  4) Shadowsocks 2022 (极简稳定)\n"
+#        printf -- "  4) Shadowsocks 2022 (极简稳定)\n"
         printf -- "  5) VMess-WS-TLS (CDN 必备)\n"
         printf -- "-------------------------------------------------\n"
         printf -- "  0) 返回主菜单			q) 退出程序\n"
@@ -253,11 +254,11 @@ EOF
                 systemctl restart caddy && systemctl enable caddy
                 ;;
             3) PROTO="trojan"; TRANS="ws" ;;
-            4) 
-                PROTO="shadowsocks"; TRANS="tcp"
-                # 【唯一必要修改】：SS-2022 强制要求 32 字节 Base64 密钥以解决 PublicKey 报错
-                UUID=$(openssl rand -base64 32)
-                ;;
+#            4) 
+#                PROTO="shadowsocks"; TRANS="tcp"
+#                # 【唯一必要修改】：SS-2022 强制要求 32 字节 Base64 密钥以解决 PublicKey 报错
+#               UUID=$(openssl rand -base64 32)
+#              ;;
             5) PROTO="vmess"; TRANS="ws" ;;
             *) _red "非法指令"; continue ;;
         esac
