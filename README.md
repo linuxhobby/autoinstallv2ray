@@ -2,8 +2,11 @@
 第一版：2026/04/26
 
 建议使用debian12/13系统，或Ubuntu25/26。  
-目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。
-目前支持的协议：
+目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。  
+脚本界面：  
+<img width="521" height="433" alt="image" src="https://github.com/user-attachments/assets/ba216600-9617-43e3-b74d-6f6ef86c4348" />
+
+目前支持的协议：  
 <img width="434" height="210" alt="image" src="https://github.com/user-attachments/assets/9d9b97e8-0e49-41e6-b73c-31da23cc7480" />
 
 
