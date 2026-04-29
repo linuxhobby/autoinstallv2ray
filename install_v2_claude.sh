@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # =================== BUG 修改记录 ====================
-# 1、修复 VLESS/VMess/Trojan-H2-TLS 无法使用的问题：
-#    a) build_config: h2 的 httpSettings 补全 host 字段，新增第7参数 domain
-#    b) deploy_services: H2 协议单独生成 Caddyfile，使用路径匹配 + h2c 转发
-#    c) get_link: H2 分享链接 type 参数由 h2 修正为 http（客户端标准）
+# 1、claude版本
+# 2、三个协议可用
+#   1)VLESS-WS-TLS
+#   2)VLESS-gRPC-TLS
+#   4)VMess-WS-TLS
 #
 # ====================================================
 # 将军自持版 V2ray_install.sh 更新日志
