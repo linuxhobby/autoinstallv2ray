@@ -7,7 +7,6 @@ _yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }
 
 _yellow ">>> 正在清理旧版残余..."
 rm -f install.sh*
-rm -f install_v2.sh*
 
 _yellow ">>> 正在从阵地抓取最新战略脚本..."
 # 2. 增加 --tries 和 --timeout 确保在弱网下重试，并强制不使用服务器缓存
