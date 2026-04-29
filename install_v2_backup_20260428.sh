@@ -1,15 +1,13 @@
 #!/bin/bash
 
 # ====================================================
-# 将军自持版 V2ray_install.sh
-# 1. 17个协议全阵列，默认以VLESS-WS-TLS协议安装
-# 2. 默认同步shangHai time zone
-# 3. 集成 查看/新增/删除 管理逻辑
-# 4. 新增 BBR 战略加速模块
-# 5. 此版本经过 Debian12、Debian13、Ubuntu25 测试通过
-# 6. 链接：https://raw.githubusercontent.com/linuxhobby/auto-install-v2ray/refs/heads/master/install_v2.sh
+# 将军自持版 V2ray_install.sh 更新日志
+# 1. 2026/04/26，v1.0.0.0，支持17个协议全阵列，推荐以VLESS-WS-TLS协议安装，默认同步上海时区，集成 查看/新增/删除 管理逻辑，以及BBR和vnstat两个工具包。
+# 2. 2026/04/27，新增 BBR 战略加速模块
+# 3. 此版本经过 Debian12、Debian13、Ubuntu25、Ubuntu26 测试通过
+# 4. 一键指令 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
 # ====================================================
-# 防止最新版本的兼容性，指定v2ray和caddy经过测试稳定的版本
+# 防止最新版本的兼容性，指定v2ray和caddy经过测试稳定的版本，根据实际的升级，日后可以调整升级。
 V2_VERSION="v5.49.0"     # 锁定 V2Ray 版本
 CADDY_VERSION="2.11.2"    # 锁定 Caddy 版本
 
@@ -20,16 +18,17 @@ V2_CONF="/etc/v2ray/config.json"
 CADDY_FILE="/etc/caddy/Caddyfile"
 
 # --- 核心颜色引擎 (采用安全格式化) ---
-_white() { printf -- "\033[37m%s\033[0m\n" "$*"; }   
-_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }   
-_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }     
-_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }  
-_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }    
-_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; } 
-_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }    
-_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }    
-_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }   
-_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   
+# 格式说明：\033[颜色代码m 代表开启；%s 是内容占位符；\033[0m 是重置符号，防止颜色污染后续文本
+_white() { printf -- "\033[37m%s\033[0m\n" "$*"; }          # 白色：用于次要信息、常规正文或路径说明
+_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }          # 绿色：代表部署成功、服务开启或验证通过[cite: 1]
+_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }            # 红色：用于核心警告、错误提示或删除配置[cite: 1]
+_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }         # 黄色：代表正在处理、安装中或需注意的中间状态[cite: 1]
+_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }           # 蓝色：用于展示具体的战略参数（如UUID、端口、域名）[cite: 1]
+_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; }        # 品红：用于显示战术菜单标题或醒目的横幅[cite: 1]
+_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }           # 青色：用于用户输入提示（Prompt）或指令说明[cite: 1]
+_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }           # 灰色：用于不重要的背景注释或系统底层日志[cite: 1]
+_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }          # 棕色/暗黄：用于区分次级等待状态或辅助模块提醒[cite: 1]
+_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   # 亮紫色：256色高级模式，专门用于展示战略分享链接[cite: 1]
 
 # --- 0. BBR 战略加速引擎 ---
 enable_bbr() {
@@ -84,7 +83,7 @@ init_system() {
     
     if [[ "$IS_TLS" == "true" ]]; then
         unset MY_EMAIL
-        printf -- "\033[36m请输入用于申请证书的邮箱: \033[0m\n"
+        printf -- "\033[31m请输入用于申请证书的邮箱，用于证书过期提醒（如不需要可直接【回车键】）: \033[0m\n"
         read -p "[默认: linuxhobby@tinkmail.me]: " input_email
         MY_EMAIL=${input_email:-"linuxhobby@tinkmail.me"}
         _blue ">>> 战略目标已锁定，证书邮箱: $MY_EMAIL"
@@ -128,10 +127,10 @@ install_vnstat() {
 
     _green ">>> 部署成功！"
     _red "使用指令说明:"
-    _cyan " - vnstat -d : 查看每日流量"
-    _cyan " - vnstat -m : 查看每月流量"
-    _cyan " - vnstat -i $interface : 查看每日/月流量"
-    _cyan " - vnstat -l : 实时流量监控"
+    _purple " - vnstat -d : 查看每日流量"
+    _purple " - vnstat -m : 查看每月流量"
+    _purple " - vnstat -i $interface : 查看每日/月流量"
+    _purple " - vnstat -l : 实时流量监控"
     printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
 }
@@ -284,10 +283,10 @@ while true; do
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
-    printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v1.0.0.5                     \033[0m\n"
+    printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
+    printf -- "\033[31m   特征码：人生若只如初见v1.0.0.5                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
-    printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
+    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
@@ -304,7 +303,7 @@ while true; do
         5) install_vnstat ;;
         3) 
             clear
-            _red "========== 撤除部署：资产清查 =========="
+            _red "========== 撤除部署：消灭敌人 =========="
             if [ -f "$V2_CONF" ]; then
                 current_proto=$(jq -r '.inbounds[0].protocol' $V2_CONF)
                 current_uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $V2_CONF)
@@ -330,11 +329,11 @@ while true; do
                     systemctl stop v2ray caddy 2>/dev/null
                     rm -rf $V2_DIR
                     rm -f $CADDY_FILE
-                    _red ">>> 报告将军：阵地已清理完毕。"
+                    _red ">>> 报告将军阁下：阵地已清理完毕。"
                     read -p "按回车键返回主菜单..." temp
                 fi
             else
-                _blue "提示：目前阵地空置，无需撤除。"
+                _blue "提示：敌人已经全部消灭，目前阵地空置，无需撤除。"
                 read -p "按回车键返回主菜单..." temp
             fi
             ;;
@@ -402,7 +401,7 @@ while true; do
                         resolved_ip=$(dig +short "$DOMAIN" || host "$DOMAIN" | awk '/has address/ { print $4 }' | head -n1)
                         public_ip=$(curl -s ipv4.icanhazip.com)
                         if [[ "$resolved_ip" == "$public_ip" ]]; then
-                            _green "解析一致：$public_ip，可以作战！"; break
+                            _green "解析一致：$public_ip，可以发起进攻！"; break
                         else
                             _red "解析不匹配或未生效。"; printf -- "\033[31m强制部署？(y/n): \033[0m" && read force_run
                             [[ "$force_run" == "y" ]] && break
