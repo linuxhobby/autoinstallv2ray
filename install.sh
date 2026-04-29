@@ -293,14 +293,14 @@ get_link() {
     local path_enc=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$path'))")
     if [[ "$is_tls" == "true" ]]; then
         case $proto in
-            vless)  echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}#${ps}" ;;
+            vless)  echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}" ;;
             vmess)
                 local v_json=$(cat <<EOF
 {"v":"2","ps":"$ps","add":"$dom","port":"443","id":"$secret","aid":"0","net":"$trans","type":"none","host":"$dom","path":"$path","tls":"tls"}
 EOF
                 )
                 echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
-            trojan) echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}#${ps}" ;;
+            trojan) echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}" ;;
         esac
     fi
 }
