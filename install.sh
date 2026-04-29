@@ -13,7 +13,7 @@
 # 3. 此版本经过 Debian12、Debian13、Ubuntu25、Ubuntu26 测试通过
 # 4. 一键指令 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
 # ====================================================
-# 防止最新版本的兼容性，指定v2ray和caddy经过测试稳定的版本，根据实际的升级，日后可以调整升级。
+# 防止最新版本的兼容性，指定v2ray架caddy经过测试稳定的版本，根据实际的升级，日后可以调整升级。
 V2_VERSION="v5.49.0"     # 锁定 V2Ray 版本
 CADDY_VERSION="2.11.2"    # 锁定 Caddy 版本
 
@@ -26,15 +26,15 @@ CADDY_FILE="/etc/caddy/Caddyfile"
 # --- 核心颜色引擎 (采用安全格式化) ---
 # 格式说明：\033[颜色代码m 代表开启；%s 是内容占位符；\033[0m 是重置符号，防止颜色污染后续文本
 _white() { printf -- "\033[37m%s\033[0m\n" "$*"; }          # 白色：用于次要信息、常规正文或路径说明
-_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }          # 绿色：代表部署成功、服务开启或验证通过[cite: 1]
-_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }            # 红色：用于核心警告、错误提示或删除配置[cite: 1]
-_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }         # 黄色：代表正在处理、安装中或需注意的中间状态[cite: 1]
-_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }           # 蓝色：用于展示具体的战略参数（如UUID、端口、域名）[cite: 1]
-_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; }        # 品红：用于显示战术菜单标题或醒目的横幅[cite: 1]
-_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }           # 青色：用于用户输入提示（Prompt）或指令说明[cite: 1]
-_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }           # 灰色：用于不重要的背景注释或系统底层日志[cite: 1]
-_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }          # 棕色/暗黄：用于区分次级等待状态或辅助模块提醒[cite: 1]
-_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   # 亮紫色：256色高级模式，专门用于展示战略分享链接[cite: 1]
+_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }          # 绿色：代表部署成功、服务开启或验证通过
+_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }            # 红色：用于核心警告、错误提示或删除配置
+_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }         # 黄色：代表正在处理、安装中或需注意的中间状态
+_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }           # 蓝色：用于展示具体的战略参数（如UUID、端口、域名）
+_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; }        # 品红：用于显示战术菜单标题或醒目的横幅
+_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }           # 青色：用于用户输入提示（Prompt）或指令说明
+_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }           # 灰色：用于不重要的背景注释或系统底层日志
+_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }          # 棕色/暗黄：用于区分次级等待状态或辅助模块提醒
+_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   # 亮紫色：256色高级模式，专门用于展示战略分享链接
 
 # --- 0. BBR 战略加速引擎 ---
 enable_bbr() {
@@ -159,7 +159,7 @@ show_status() {
         local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $V2_CONF)
         local port=$(jq -r '.inbounds[0].port' $V2_CONF)
         local trans=$(jq -r '.inbounds[0].streamSettings.network // "tcp"' $V2_CONF)
-        local path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path // .inbounds[0].streamSettings.grpcSettings.serviceName // ""' $V2_CONF)
+        local path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path // .inbounds[0].streamSettings.grpcSettings.serviceName // .inbounds[0].streamSettings.httpSettings.path // ""' $V2_CONF)
         local domain=$(grep -oP '^\s*\K[a-zA-Z0-9.-]+(?=\s*{)' $CADDY_FILE 2>/dev/null | head -n1)
         
         _blue "● 当前协议: $proto"
@@ -168,7 +168,13 @@ show_status() {
         _blue "● UUID/密码: $uuid"
         
         if [[ -n "$path" ]]; then
-            [[ "$trans" == "grpc" ]] && _blue "● gRPC 服务名: $path" || _blue "● WS 路径: $path"
+            if [[ "$trans" == "grpc" ]]; then
+                _blue "● gRPC 服务名: $path"
+            elif [[ "$trans" == "h2" ]]; then
+                _blue "● H2 路径: $path"
+            else
+                _blue "● WS 路径: $path"
+            fi
         fi
         
         _blue "● 系统时间: $(date)"
@@ -391,7 +397,7 @@ while true; do
                 current_uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $V2_CONF)
                 current_port=$(jq -r '.inbounds[0].port' $V2_CONF)
                 current_trans=$(jq -r '.inbounds[0].streamSettings.network // "tcp"' $V2_CONF)
-                current_path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path // .inbounds[0].streamSettings.grpcSettings.serviceName // ""' $V2_CONF)
+                current_path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path // .inbounds[0].streamSettings.grpcSettings.serviceName // .inbounds[0].streamSettings.httpSettings.path // ""' $V2_CONF)
                 current_domain=$(grep -oP '^\s*\K[a-zA-Z0-9.-]+(?=\s*{)' $CADDY_FILE 2>/dev/null | head -n1)
                 
                 _blue "● 当前协议: $current_proto"
