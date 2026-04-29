@@ -431,7 +431,7 @@ while true; do
                 printf -- "  5) VMess-gRPC-TLS【ok】     [全能：多路复用响应快]\n"
                 printf -- "  6) VMess-H2-TLS       [稳健：通过 H2 协议伪装]\n"
                 printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低，链接未生成地址等信息，无法使用]\n"
-                printf -- "  8) VMess-mKCP         [强力：UDP加速抗丢包]\n"
+                printf -- "  8) VMess-mKCP         [强力：UDP加速抗丢包，链接未生成地址等信息，无法使用]\n"
                 printf -- "  9) VMess-QUIC         [抗断：移动网络连接稳定]\n"
                 printf -- " 10) Trojan-gRPC-TLS    [极低延迟：模拟网页流量]\n"
                 printf -- " 11) Trojan-WS-TLS      [均衡：传统Trojan结合WS]\n"
