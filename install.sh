@@ -423,7 +423,7 @@ while true; do
         2)
             while true; do
                 clear
-                printf -- "========== 协议战术矩阵 (v2ray_install) ==========\n"
+                printf -- "========== 协议矩阵 (v2ray_install) ==========\n"
                 printf -- "  1) VLESS-WS-TLS【ok】       [王牌：最稳且支持CDN]【推荐】\n"
                 printf -- "  2) VLESS-gRPC-TLS【ok】     [极速：抗封锁性能优异]\n"
                 printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
@@ -436,7 +436,7 @@ while true; do
                 printf -- " 10) Trojan-gRPC-TLS【ok】    [极低延迟：模拟网页流量]\n"
                 printf -- " 11) Trojan-WS-TLS【ok】      [均衡：传统Trojan结合WS]\n"
                 printf -- " 12) Trojan-H2-TLS      [隐蔽：H2 加持网页模拟]\n"
-                printf -- " 13) Shadowsocks        [极致轻量：路由器首选]\n"
+                printf -- " 13) Shadowsocks        [极致轻量：路由器首选，类似H2]\n"
                 printf -- " 14) Shadowsocks-WS     [灵活：SS 加入 WS 传输]\n"
                 printf -- " 15) Shadowsocks-QUIC   [抗封：SS 结合 QUIC 传输]\n"
                 printf -- " 16) Socks-TCP          [原始：无加密内网测试]\n"
