@@ -1,6 +1,16 @@
 #!/bin/bash
 
 # =================== BUG 修改记录 ====================
+# 1、claude版本
+# 2、已经测试可用的协议
+#   1)VLESS-WS-TLS
+#   2)VLESS-gRPC-TLS
+#   4)VMess-WS-TLS
+#   5)VMess-gRPC-TLS
+#   10) Trojan-gRPC-TLS
+#   11) Trojan-WS-TLS
+#
+# =================== BUG 修改记录 ====================
 # 1、修复 VLESS/VMess/Trojan-H2-TLS 无法使用的问题：
 #    a) build_config: h2 的 httpSettings 补全 host 字段，新增第7参数 domain
 #    b) deploy_services: H2 协议单独生成 Caddyfile，使用路径匹配 + h2c 转发
@@ -365,7 +375,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：claude v1.0.1.01.22:56                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.1.02.23:10                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m   H2协议淘汰，等待升级 \033[0m\n" 
