@@ -298,8 +298,9 @@ while true; do
     # --- 新增：获取系统版本信息 ---
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
+    printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v12345                     \033[0m\n"
+    printf -- "\033[31m   版本特征码：人生若只如初见v1.0.0.3                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
