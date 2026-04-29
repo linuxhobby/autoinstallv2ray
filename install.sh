@@ -20,17 +20,16 @@ V2_CONF="/etc/v2ray/config.json"
 CADDY_FILE="/etc/caddy/Caddyfile"
 
 # --- 核心颜色引擎 (采用安全格式化) ---
-# \033[37m 代表白色；%s 是占位符；\033[0m 是重置符号，防止颜色污染后续文本
-_white() { printf -- "\033[37m%s\033[0m\n" "$*"; }   # 白色：通常用于次要信息
-_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }   # 绿色：用于成功、部署完成或开启状态
-_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }     # 红色：用于警告、错误或删除提示
-_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }  # 黄色：用于注意、等待或正在处理的提示
-_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }    # 蓝色：用于展示具体的配置参数（UUID、端口等）
-_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; } # 品红/洋红：用于醒目的标题
-_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }    # 青色：用于用户输入提示（Prompt）
-_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }    # 灰色：用于注释或不重要的背景信息
-_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }   # 棕色/暗黄：在某些终端与黄色相近
-_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   #256色模式中的亮紫色 (第 141 号色)，观感最温润高级
+_white() { printf -- "\033[37m%s\033[0m\n" "$*"; }   
+_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }   
+_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }     
+_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }  
+_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }    
+_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; } 
+_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }    
+_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }    
+_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }   
+_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }   
 
 # --- 0. BBR 战略加速引擎 ---
 enable_bbr() {
@@ -65,15 +64,12 @@ enable_bbr() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 1. 环境初始化与时区校准 (加固版) ---
+# --- 1. 环境初始化与时区校准 ---
 init_system() {
     _green ">>> 执行战前准备：设置时区与同步核心..."
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-    
-    # 核心加固：安装 gnupg 防止 Caddy 密钥导入失败，安装 dnsutils 供解析校验
     apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg
 
-    # --- 新增：开放 80 和 443 端口 ---
     _green ">>> 正在配置防火墙，开放 80/443 战略端口..."
     if command -v ufw >/dev/null 2>&1; then
         ufw allow 80/tcp >/dev/null 2>&1
@@ -105,32 +101,27 @@ init_system() {
 
 # --- 2. 流量统计安装引擎 ---
 install_vnstat() {
-    # 1. 严格检测逻辑：如果已安装，直接提示并返回主菜单
     if command -v vnstat &> /dev/null; then
         _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
         printf -- "===============================================\n"
         read -p "按回车键返回主菜单..." temp
-        return # 直接退出函数，不执行后续网卡识别和配置
+        return 
     fi
 
-    # 2. 未安装时的安装流程
     _brown ">>> 正在开启 vnstat 战略流量统计部署..."
     _blue ">>> 正在从阵地补给站获取 vnstat..."
     apt update && apt install -y vnstat
 
-    # 3. 智能网卡识别
     local interface=$(ip route get 8.8.8.8 2>/dev/null | grep -Po '(?<=dev )(\S+)' | head -1)
     if [ -z "$interface" ]; then
         interface=$(ls /sys/class/net | grep -v lo | head -1)
     fi
     _blue ">>> 锁定监控网卡: $interface"
 
-    # 4. 自动化配置
     if [ -f "/etc/vnstat.conf" ]; then
         sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
     fi
 
-    # 5. 初始化与启动
     vnstat -u -i "$interface" >/dev/null 2>&1
     systemctl enable vnstat >/dev/null 2>&1
     systemctl restart vnstat >/dev/null 2>&1
@@ -139,19 +130,17 @@ install_vnstat() {
     _red "使用指令说明:"
     _cyan " - vnstat -d : 查看每日流量"
     _cyan " - vnstat -m : 查看每月流量"
-    _cyan " - vnstat -i "$interface : 查看每日/月流量"
+    _cyan " - vnstat -i $interface : 查看每日/月流量"
     _cyan " - vnstat -l : 实时流量监控"
     printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
 }
-
 
 # --- 2. 查看现有配置 ---
 show_status() {
     clear
     _red "========== 当前作战部署状态 =========="
     if [ -f "$V2_CONF" ]; then
-            # 获取系统版本信息
         local os_info="未知系统"
         if [ -f /etc/os-release ]; then
             os_info=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2)
@@ -174,9 +163,7 @@ show_status() {
         _blue "● UUID/密码: $uuid"
         [[ -n "$path" ]] && _blue "● 路径/服务名: $path"
         _blue "● 系统时间: $(date)"
-        # --- 新增：系统版本显示 ---
         _blue "● 系统版本: $os_info"
-         # 如果安装了 vnstat，则显示今日流量统计
         if command -v vnstat &> /dev/null; then
             local traffic_today=$(vnstat --oneline | cut -d';' -f6)
             _blue "● 今日已用流量: $traffic_today"
@@ -241,7 +228,6 @@ deploy_services() {
             apt-mark hold caddy
         fi
         
-        _green ">>> 检查 Caddy 运行环境..."
         if ! getent group caddy >/dev/null; then groupadd --system caddy; fi
         if ! id -u caddy >/dev/null 2>&1; then
             useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin --comment "Caddy web server" caddy
@@ -295,12 +281,11 @@ EOF
 # --- 主循环控制台 ---
 while true; do
     clear
-    # --- 新增：获取系统版本信息 ---
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v1.0.0.3                     \033[0m\n"
+    printf -- "\033[31m   版本特征码：人生若只如初见v1.0.0.5                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
@@ -316,6 +301,7 @@ while true; do
     case $main_opt in
         1) show_status ;;
         4) enable_bbr ;;
+        5) install_vnstat ;;
         3) 
             clear
             _red "========== 撤除部署：资产清查 =========="
@@ -335,7 +321,6 @@ while true; do
                 
                 printf -- "------------------------------------\n"
                 _red "● 战略分享链接:"
-                # 修复变量引用错误
                 current_link=$(get_link "$current_proto" "$current_uuid" "$current_domain" "$current_path" "$current_trans" "true")
                 _purple "$current_link"
                 printf -- "------------------------------------\n"
@@ -378,16 +363,13 @@ while true; do
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
                 printf -- "===============================================\n"
                 printf -- "\033[31m请选择协议指令: \033[0m" && read opt
-                # --- 新增校验逻辑 ---
                 if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^[0-9]+$ ]] || [ "$opt" -lt 1 ] || [ "$opt" -gt 17 ]; then
-                [[ "$opt" == "0" ]] && break
-                [[ "$opt" == "q" ]] && exit 0
-                 _red "警告：非法指令！请重新输入 1-17 之间的数字。"
-                sleep 2
+                    [[ "$opt" == "0" ]] && break
+                    [[ "$opt" == "q" ]] && exit 0
+                    _red "警告：非法指令！请重新输入 1-17 之间的数字。"
+                    sleep 2
                     continue
                 fi
-                [[ "$opt" == "0" ]] && break
-                [[ "$opt" == "q" ]] && exit 0
                 
                 UUID=$(cat /proc/sys/kernel/random/uuid); WPATH="/ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
                 DOMAIN=""; IS_TLS="false"; PROTO="vless"; TRANS="ws"; PORT=10086
@@ -409,7 +391,6 @@ while true; do
                     15) PROTO="shadowsocks"; TRANS="quic"; PORT=12345; UUID="pass$(date +%s)" ;;
                     16) PROTO="socks"; TRANS="tcp"; PORT=12345 ;;
                     17) PROTO="socks"; TRANS="ws"; IS_TLS="true" ;;
-                    *) _red "选择无效"; continue ;; # 兜底逻辑
                 esac
 
                 init_system
@@ -436,7 +417,7 @@ while true; do
                 _blue " UUID/密码: $UUID"
                 _blue "-----------------------------------------------"
                 SHARE_LINK=$(get_link "$PROTO" "$UUID" "$DOMAIN" "$WPATH" "$TRANS" "$IS_TLS")
-                [[ -n "$SHARE_LINK" ]] && printf -- "\033[1;32m${SHARE_LINK}\033[0m\\n"
+                [[ -n "$SHARE_LINK" ]] && printf -- "\033[1;32m${SHARE_LINK}\033[0m\n"
                 _green "==============================================="
                 exit 0 
             done
