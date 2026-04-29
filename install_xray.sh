@@ -168,20 +168,30 @@ show_params() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 5. 核心配置与服务管理 (全量复刻自 install_xray_5.sh) ---
+# --- 5. 核心配置与服务管理 (针对 SS-2022 修复版) ---
 build_config() {
     local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local flow=$6
     local listen_ip="0.0.0.0"
     
     if [[ "$port" == "30000" ]]; then listen_ip="127.0.0.1"; fi
     [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
+
+    # --- 关键注入：判断协议并设置 method ---
+    local method_setting=""
+    if [[ "$proto" == "shadowsocks" ]]; then
+        method_setting='"method": "aes-256-gcm",'
+    fi
     
     cat > $XRAY_CONF <<EOF
 {
   "log": { "loglevel": "warning" },
   "inbounds": [{
     "port": $port, "listen": "$listen_ip", "protocol": "$proto",
-    "settings": { "clients": [ { "id": "$secret", "password": "$secret", "flow": "$flow", "level": 0 } ], "decryption": "none" },
+    "settings": { 
+      $method_setting
+      "clients": [ { "id": "$secret", "password": "$secret", "flow": "$flow", "level": 0 } ], 
+      "decryption": "none" 
+    },
     "streamSettings": { "network": "$trans", "${trans}Settings": { "path": "$path", "serviceName": "$path" } }
   }],
   "outbounds": [{ "protocol": "freedom" }]
@@ -269,6 +279,7 @@ while true; do
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
     printf -- "\033[31m   特征码：v1.04.30.01.06                     \033[0m\n"
+	printf -- "\033[31m   适用环境：Debian13         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 新增/更换配置 (支持 Caddy 自动证书)\n"
