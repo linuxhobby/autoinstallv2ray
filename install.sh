@@ -211,9 +211,6 @@ build_config() {
     case $trans in
         ws)   stream_json="\"network\": \"ws\", \"wsSettings\": { \"path\": \"$path\" }" ;;
         grpc) stream_json="\"network\": \"grpc\", \"grpcSettings\": { \"serviceName\": \"$path\" }" ;;
-        h2)   stream_json="\"network\": \"h2\", \"httpSettings\": { \"path\": \"$path\", \"host\": [\"$domain\"] }" ;;
-        mkcp) stream_json="\"network\": \"kcp\", \"kcpSettings\": { \"header\": { \"type\": \"none\" } }" ;;
-        quic) stream_json="\"network\": \"quic\", \"quicSettings\": { \"header\": { \"type\": \"none\" } }" ;;
         *)    stream_json="\"network\": \"tcp\"" ;;
     esac
     cat > $V2_CONF <<EOF
@@ -228,8 +225,6 @@ build_config() {
         vless)       echo '"decryption": "none", "clients": [ { "id": "'$secret'", "level": 0 } ]' ;;
         vmess)       echo '"clients": [ { "id": "'$secret'", "level": 0 } ]' ;;
         trojan)      echo '"clients": [ { "password": "'$secret'" } ]' ;;
-        shadowsocks) echo '"method": "aes-256-gcm", "password": "'$secret'"' ;;
-        socks)       echo '"auth": "noauth", "udp": true' ;;
       esac)
     },
     "streamSettings": { $stream_json }
@@ -260,7 +255,7 @@ deploy_services() {
         mkdir -p /etc/caddy /var/lib/caddy
         chown -R caddy:caddy /etc/caddy /var/lib/caddy
         
-# --- 针对 gRPC/H2 优化 Caddyfile 生成逻辑 ---
+# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
         if [[ "$TRANS" == "grpc" ]]; then
             cat > $CADDY_FILE <<EOF
 $domain {
@@ -276,20 +271,6 @@ $domain {
     }
 }
 EOF
-        elif [[ "$TRANS" == "h2" ]]; then
-            cat > $CADDY_FILE <<EOF
-$domain {
-    tls "$MY_EMAIL"
-    @h2path {
-        path ${path}*
-    }
-    reverse_proxy @h2path 127.0.0.1:$port {
-        transport http {
-            versions h2c
-        }
-    }
-}
-EOF
         else
             cat > $CADDY_FILE <<EOF
 $domain {
@@ -298,7 +279,7 @@ $domain {
 }
 EOF
         fi
-# --- 针对 gRPC/H2 优化 Caddyfile 生成逻辑 ---
+# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
 
         systemctl daemon-reload
         systemctl restart caddy
@@ -327,13 +308,11 @@ get_link() {
             vless)
                 if [[ "$trans" == "grpc" ]]; then
                     echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
-                elif [[ "$trans" == "h2" ]]; then
-                    echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=http&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 else
                     echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 fi ;;
             vmess)
-                local vmess_net="$trans"; [[ "$trans" == "h2" ]] && vmess_net="http"
+                local vmess_net="$trans"
                 local v_json=$(cat <<EOF
 {"v":"2","ps":"$ps","add":"$dom","port":"443","id":"$secret","aid":"0","net":"$vmess_net","type":"none","host":"$dom","path":"$path","tls":"tls"}
 EOF
@@ -342,28 +321,9 @@ EOF
             trojan)
                 if [[ "$trans" == "grpc" ]]; then
                     echo "trojan://${secret}@${dom}:443?security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
-                elif [[ "$trans" == "h2" ]]; then
-                    echo "trojan://${secret}@${dom}:443?security=tls&type=http&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 else
                     echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 fi ;;
-            shadowsocks)
-                local ss_auth=$(echo -n "aes-256-gcm:${secret}" | base64 -w 0)
-                echo "ss://${ss_auth}@${dom}:443?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Btls%3Bhost%3D${dom}%3Bpath%3D${path_enc}#${ps}" ;;
-        esac
-    else
-        case $proto in
-            vmess)
-                local v_json=$(cat <<EOF
-{"v":"2","ps":"$ps","add":"$dom","port":"$port","id":"$secret","aid":"0","net":"$trans","type":"none","host":"","path":"$path","tls":""}
-EOF
-                )
-                echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
-            shadowsocks)
-                local ss_auth=$(echo -n "aes-256-gcm:${secret}" | base64 -w 0)
-                echo "ss://${ss_auth}@${ps_prefix}:${port}#${ps}" ;;
-            socks)
-                echo "socks5://${ps_prefix}:${port}#${ps}" ;;
         esac
     fi
 }
@@ -381,7 +341,7 @@ while true; do
     printf -- "\033[31m   H2协议淘汰，等待升级 \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
-    printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
+    printf -- "  2) 新增/更换配置 (支持核心协议)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
     printf -- "  5) 安装 vnstat 流量统计\n"
@@ -436,31 +396,18 @@ while true; do
                 printf -- "========== 协议矩阵 (v2ray_install) ==========\n"
                 printf -- "  1) VLESS-WS-TLS【ok】       [保留，王牌：最稳且支持CDN]【推荐】\n"
                 printf -- "  2) VLESS-gRPC-TLS【ok】     [保留，极速：抗封锁性能优异]\n"
-                printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
-                printf -- "  4) VMess-WS-TLS【ok】       [淘汰，经典：平稳支持CDN中转]\n"
-                printf -- "  5) VMess-gRPC-TLS【ok】     [淘汰，全能：多路复用响应快]\n"
-                printf -- "  6) VMess-H2-TLS       [淘汰，稳健：通过 H2 协议伪装]\n"
-                printf -- "  7) VMess-TCP          [淘汰，基础：无伪装，延迟最低，无需输入域名，链接未生成地址等信息，无法使用]\n"
-                printf -- "  8) VMess-mKCP         [淘汰，强力：UDP加速抗丢包，无需输入域名，链接未生成地址等信息，无法使用]\n"
-                printf -- "  9) VMess-QUIC         [淘汰，抗断：移动网络连接稳定，无需输入域名，链接未生成地址等信息，无法使用]\n"
-                printf -- " 10) Trojan-gRPC-TLS【ok】    [保留，极低延迟：模拟网页流量]\n"
-                printf -- " 11) Trojan-WS-TLS【ok】      [均衡：传统Trojan结合WS]\n"
-                printf -- " 12) Trojan-H2-TLS      [隐蔽：H2 加持网页模拟]\n"
-                printf -- " 13) Shadowsocks        [保留，极致轻量：路由器首选，无需输入域名，类似H2无错误]\n"
-                printf -- " 14) Shadowsocks-WS     [灵活：SS 加入 WS 传输，错误信息：line 508: prin-tf: B: invalid format character]\n"
-                printf -- " 15) Shadowsocks-QUIC   [淘汰，抗封：SS 结合 QUIC 传输，无需输入域名，类似H2无错误]\n"
-                printf -- " 16) Socks-TCP          [淘汰，原始：无加密内网测试,可删除]\n"
-                printf -- " 17) Socks-WS           [淘汰，兼容：Socks 结合 WS 转发，最后没有生成分享链接]\n"
-                printf -- " 18) VLESS-TCP-REALITY          [保留，即将新增]\n"
-                printf -- " 19) VLESS-REALITY-VISION           [即将新增]\n"
+                printf -- "  3) VMess-WS-TLS【ok】       [淘汰，经典：平稳支持CDN中转]\n"
+                printf -- "  4) VMess-gRPC-TLS【ok】     [淘汰，全能：多路复用响应快]\n"
+                printf -- "  5) Trojan-gRPC-TLS【ok】    [保留，极低延迟：模拟网页流量]\n"
+                printf -- "  6) Trojan-WS-TLS【ok】      [均衡：传统Trojan结合WS]\n"
                 printf -- "-----------------------------------------------\n"
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
                 printf -- "===============================================\n"
-                printf -- "\033[31m请选择协议指令: \033[0m" && read opt
-                if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^[0-9]+$ ]] || [ "$opt" -lt 1 ] || [ "$opt" -gt 17 ]; then
+                printf -- "\033[31m请选择协议编号: \033[0m" && read opt
+                if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
                     [[ "$opt" == "0" ]] && break
                     [[ "$opt" == "q" ]] && exit 0
-                    _red "警告：非法指令！请重新输入 1-17 之间的数字。"
+                    _red "警告：非法指令！请输入选择的协议编号【1-6】。"
                     sleep 2
                     continue
                 fi
@@ -470,21 +417,10 @@ while true; do
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
                     2) PROTO="vless"; TRANS="grpc"; IS_TLS="true" ;;
-                    3) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
-                    4) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
-                    5) PROTO="vmess"; TRANS="grpc"; IS_TLS="true" ;;
-                    6) PROTO="vmess"; TRANS="h2"; IS_TLS="true" ;;
-                    7) PROTO="vmess"; TRANS="tcp"; PORT=12345 ;;
-                    8) PROTO="vmess"; TRANS="mkcp"; PORT=12345 ;;
-                    9) PROTO="vmess"; TRANS="quic"; PORT=12345 ;;
-                    10) PROTO="trojan"; TRANS="grpc"; IS_TLS="true" ;;
-                    11) PROTO="trojan"; TRANS="ws"; IS_TLS="true" ;;
-                    12) PROTO="trojan"; TRANS="h2"; IS_TLS="true" ;;
-                    13) PROTO="shadowsocks"; TRANS="tcp"; PORT=12345; UUID="pass$(date +%s)" ;;
-                    14) PROTO="shadowsocks"; TRANS="ws"; IS_TLS="true"; UUID="pass$(date +%s)" ;;
-                    15) PROTO="shadowsocks"; TRANS="quic"; PORT=12345; UUID="pass$(date +%s)" ;;
-                    16) PROTO="socks"; TRANS="tcp"; PORT=12345 ;;
-                    17) PROTO="socks"; TRANS="ws"; IS_TLS="true" ;;
+                    3) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
+                    4) PROTO="vmess"; TRANS="grpc"; IS_TLS="true" ;;
+                    5) PROTO="trojan"; TRANS="grpc"; IS_TLS="true" ;;
+                    6) PROTO="trojan"; TRANS="ws"; IS_TLS="true" ;;
                 esac
                 # gRPC serviceName 不能带斜杠，其他传输方式用 /rayXXXX 格式
                 if [[ "$TRANS" == "grpc" ]]; then
