@@ -103,7 +103,47 @@ init_system() {
     fi
 }
 
-# --- 2. 查看现有配置 ---
+# --- 2. 流量统计安装引擎 ---
+install_vnstat() {
+    _yellow ">>> 正在开启 vnstat 战略流量统计部署..."
+    
+    # 1. 安装组件
+    if ! command -v vnstat &> /dev/null; then
+        _blue ">>> 正在从阵地补给站获取 vnstat..."
+        apt update && apt install -y vnstat
+    else
+        _green ">>> 检测结果：vnstat 已在阵地服役。"
+    fi
+
+    # 2. 智能网卡识别
+    local interface=$(ip route get 8.8.8.8 2>/dev/null | grep -Po '(?<=dev )(\S+)' | head -1)
+    if [ -z "$interface" ]; then
+        interface=$(ls /sys/class/net | grep -v lo | head -1)
+    fi
+    _blue ">>> 锁定监控网卡: $interface"
+
+    # 3. 自动化配置
+    if [ -f "/etc/vnstat.conf" ]; then
+        sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
+        _green ">>> 配置文件修正完毕。"
+    fi
+
+    # 4. 初始化与启动
+    vnstat -u -i "$interface" >/dev/null 2>&1
+    systemctl enable vnstat >/dev/null 2>&1
+    systemctl restart vnstat >/dev/null 2>&1
+
+    _green ">>> 部署成功！"
+    _white "使用指令说明:"
+    _cyan " - vnstat -d : 查看每日流量"
+    _cyan " - vnstat -m : 查看每月流量"
+    _cyan " - vnstat -i $interface : 查看日/月流量"
+    _cyan " - vnstat -l : 实时流量监控"
+    printf -- "------------------------------------\n"
+    read -p "按回车键返回主菜单..." temp
+}
+
+# --- 3. 查看现有配置 ---
 show_status() {
     clear
     _red "========== 当前作战部署状态 =========="
@@ -133,7 +173,11 @@ show_status() {
         _blue "● 系统时间: $(date)"
         # --- 新增：系统版本显示 ---
         _blue "● 系统版本: $os_info"
-        
+         # 如果安装了 vnstat，则显示今日流量统计
+        if command -v vnstat &> /dev/null; then
+            local traffic_today=$(vnstat --oneline | cut -d';' -f6)
+            _blue "● 今日已用流量: $traffic_today"
+        fi       
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
         local current_link=$(get_link "$proto" "$uuid" "$domain" "$path" "$trans" "true")
@@ -251,8 +295,9 @@ while true; do
     # --- 新增：获取系统版本信息 ---
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
+    printf -- "\033[31m   作者：linuxhobby       \033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v12345                     \033[0m\n"
+    printf -- "\033[31m   版本特征码：人生若只如初见v99912345                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
@@ -260,6 +305,7 @@ while true; do
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
+    printf -- "  5) 安装 vnstat 流量统计\n"
     printf -- "  q) 退出\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m请选择主指令: \033[0m" && read main_opt
@@ -267,6 +313,7 @@ while true; do
     case $main_opt in
         1) show_status ;;
         4) enable_bbr ;;
+        5) install_vnstat ;; # <--- 新增关联
         3) 
             clear
             _red "========== 撤除部署：资产清查 =========="
