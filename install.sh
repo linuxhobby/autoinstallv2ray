@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# =================== BUG 修改记录 ====================
+# 1、修改
+#
+#
 # ====================================================
 # 将军自持版 V2ray_install.sh 更新日志
 # 1. 2026/04/26，v1.0.0.0，支持17个协议全阵列，推荐以VLESS-WS-TLS协议安装，默认同步上海时区，集成 查看/新增/删除 管理逻辑，以及BBR和vnstat两个工具包。
@@ -160,7 +164,11 @@ show_status() {
         _blue "● 传输方式: $trans"
         _blue "● 监听端口: $port"
         _blue "● UUID/密码: $uuid"
-        [[ -n "$path" ]] && _blue "● 路径/服务名: $path"
+        
+        if [[ -n "$path" ]]; then
+            [[ "$trans" == "grpc" ]] && _blue "● gRPC 服务名: $path" || _blue "● WS 路径: $path"
+        fi
+        
         _blue "● 系统时间: $(date)"
         _blue "● 系统版本: $os_info"
         # --- 流量统计显示模块 ---
@@ -239,12 +247,28 @@ deploy_services() {
         mkdir -p /etc/caddy /var/lib/caddy
         chown -R caddy:caddy /etc/caddy /var/lib/caddy
         
-        cat > $CADDY_FILE <<EOF
+# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
+        if [[ "$TRANS" == "grpc" ]]; then
+            cat > $CADDY_FILE <<EOF
+$domain {
+    tls "$MY_EMAIL"
+    reverse_proxy $path localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}
+EOF
+        else
+            cat > $CADDY_FILE <<EOF
 $domain {
     tls "$MY_EMAIL"
     reverse_proxy $path 127.0.0.1:$port
 }
 EOF
+        fi
+# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
+
         systemctl daemon-reload
         systemctl restart caddy
     fi
@@ -288,7 +312,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：人生若只如初见v1.0.0.5                     \033[0m\n"
+    printf -- "\033[31m   特征码：人生若只如初见v1.0.0.5.1                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
