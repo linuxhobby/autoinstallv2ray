@@ -145,7 +145,8 @@ install_vnstat() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 3. 查看现有配置 ---
+
+# --- 2. 查看现有配置 ---
 show_status() {
     clear
     _red "========== 当前作战部署状态 =========="
@@ -179,11 +180,12 @@ show_status() {
         if command -v vnstat &> /dev/null; then
             local traffic_today=$(vnstat --oneline | cut -d';' -f6)
             _blue "● 今日已用流量: $traffic_today"
-        fi       
+        fi        
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
         local current_link=$(get_link "$proto" "$uuid" "$domain" "$path" "$trans" "true")
         _red "$current_link"
+        printf -- "------------------------------------\n"
     else
         _red "目前未发现任何部署内容。"
     fi
@@ -296,12 +298,11 @@ while true; do
     # --- 新增：获取系统版本信息 ---
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "\033[32m   作者：linuxhobby 最后更新：2026/04/29          \033[0m\n"
     printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[34m   版本特征码：人生若只如初见v1.0.0.3               \033[0m\n"
-    printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26             \033[0m\n"
-    printf -- "\033[35m   当前阵地环境：$OS_NAME                         \033[0m\n" 
-    printf -- "\033[31m=============================================== \033[0m\n"
+    printf -- "\033[31m   版本特征码：人生若只如初见v12345                     \033[0m\n"
+    printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
+    printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
+    printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
@@ -314,7 +315,6 @@ while true; do
     case $main_opt in
         1) show_status ;;
         4) enable_bbr ;;
-        5) install_vnstat ;; # <--- 新增关联
         3) 
             clear
             _red "========== 撤除部署：资产清查 =========="
