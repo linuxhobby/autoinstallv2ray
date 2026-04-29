@@ -451,6 +451,8 @@ while true; do
                 printf -- " 15) Shadowsocks-QUIC   [抗封：SS 结合 QUIC 传输，无需输入域名，类似H2无错误]\n"
                 printf -- " 16) Socks-TCP          [原始：无加密内网测试,可删除]\n"
                 printf -- " 17) Socks-WS           [兼容：Socks 结合 WS 转发，最后没有生成分享链接]\n"
+                printf -- " 18) VLESS-TCP-REALITY          [即将新增]\n"
+                printf -- " 19) VLESS-REALITY-VISION           [即将新增]\n"
                 printf -- "-----------------------------------------------\n"
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
                 printf -- "===============================================\n"
