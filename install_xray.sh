@@ -184,9 +184,14 @@ deploy_menu() {
         printf -- "  5) VMess-WS/gRPC-TLS (CDN 必备)\n"
         printf -- "  6) VMess-TCP/mKCP (直连对抗)\n"
         printf -- "-------------------------------------------------\n"
-        printf -- "  0) 返回主菜单\n"
-        read -p "请选择协议编号: " opt
-        [[ "$opt" == "0" ]] && break
+        printf -- "  0) 返回主菜单			q) 退出程序\n"
+                if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
+                    [[ "$opt" == "0" ]] && break
+                    [[ "$opt" == "q" ]] && exit 0
+                    _red "警告：非法指令！请输入选择的协议编号【1-6】。"
+                    sleep 2
+                    continue
+                fi
 
         UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; PROTO="vless"; TRANS="ws"; FLOW=""
         case $opt in
