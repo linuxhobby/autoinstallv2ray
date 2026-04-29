@@ -33,15 +33,17 @@ enable_bbr() {
     _yellow "========== BBR 战略状态巡视 =========="
     if ! command -v sysctl >/dev/null 2>&1; then
         _red "错误：系统缺少 sysctl 指令，无法调控内核参数。"
-        read -p "按回车键返回主菜单..." temp; return
+        read -p "按回车键返回主菜单..." temp
+        return
     fi
     local current_algo=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
     if [[ "$current_algo" == "bbr" ]]; then
-        _green "检测结果：BBR 战略加速已处于开启状态。"[cite: 5, 6]
+        _green "检测结果：BBR 战略加速已处于开启状态。"
         _blue "当前内核算法: $current_algo"
+        _green ">>> 报告将军：阵地带宽已在最优状态。"
     else
-        _red "检测结果：BBR 尚未开启。"[cite: 5, 6]
-        _yellow ">>> 正在尝试启动 BBR 开启程序..."[cite: 5, 6]
+        _red "检测结果：BBR 尚未开启。"
+        _yellow ">>> 正在尝试启动 BBR 开启程序..."
         grep -vE "net.core.default_qdisc|net.ipv4.tcp_congestion_control" /etc/sysctl.conf > /etc/sysctl.conf.bak
         echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf.bak
         echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf.bak
@@ -49,9 +51,9 @@ enable_bbr() {
         sysctl -p >/dev/null 2>&1
         local final_algo=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
         if [[ "$final_algo" == "bbr" ]]; then
-            _green ">>> 部署成功！BBR 战略加速已全面开启。"[cite: 5, 6]
+            _green ">>> 部署成功！BBR 战略加速已全面开启。"
         else
-            _red ">>> 部署异常：此内核可能不支持 BBR。"[cite: 5, 6]
+            _red ">>> 部署异常：此内核可能不支持 BBR。"
         fi
     fi
     _yellow "======================================"
@@ -76,20 +78,40 @@ init_system() {
 # --- 2. 流量统计安装引擎 (源代码级移植)[cite: 5, 6] ---
 install_vnstat() {
     if command -v vnstat &> /dev/null; then
-        _green ">>> 报告将军：vnstat 流量统计模块已在运行中。"[cite: 5, 6]
-        read -p "按回车键返回主菜单..." temp; return 
+        _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
+        printf -- "===============================================\n"
+        read -p "按回车键返回主菜单..." temp
+        return 
     fi
-    _brown ">>> 正在开启 vnstat 战略流量统计部署..."[cite: 5, 6]
-    apt update && apt install -y vnstat[cite: 5, 6]
+
+    _brown ">>> 正在开启 vnstat 战略流量统计部署..."
+    _blue ">>> 正在从阵地补给站获取 vnstat..."
+    apt update && apt install -y vnstat
+
     local interface=$(ip route get 8.8.8.8 2>/dev/null | grep -Po '(?<=dev )(\S+)' | head -1)
-    [[ -z "$interface" ]] && interface=$(ls /sys/class/net | grep -v lo | head -1)
-    _blue ">>> 锁定监控网卡: $interface"[cite: 5, 6]
-    [[ -f "/etc/vnstat.conf" ]] && sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
+    if [ -z "$interface" ]; then
+        interface=$(ls /sys/class/net | grep -v lo | head -1)
+    fi
+    _blue ">>> 锁定监控网卡: $interface"
+
+    if [ -f "/etc/vnstat.conf" ]; then
+        sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
+    fi
+
     vnstat -u -i "$interface" >/dev/null 2>&1
-    systemctl enable --now vnstat >/dev/null 2>&1
-    _green ">>> 部署成功！"[cite: 5, 6]
+    systemctl enable vnstat >/dev/null 2>&1
+    systemctl restart vnstat >/dev/null 2>&1
+
+    _green ">>> 部署成功！"
+    _red "使用指令说明:"
+    _purple " - vnstat -d : 查看每日流量"
+    _purple " - vnstat -m : 查看每月流量"
+    _purple " - vnstat -i $interface : 查看每日/月流量"
+    _purple " - vnstat -l : 实时流量监控"
+    printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
 }
+
 
 # --- 3. 核心配置构建引擎 (Xray 专用) ---
 build_config() {
