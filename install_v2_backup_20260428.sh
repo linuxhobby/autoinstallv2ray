@@ -163,9 +163,13 @@ show_status() {
         [[ -n "$path" ]] && _blue "● 路径/服务名: $path"
         _blue "● 系统时间: $(date)"
         _blue "● 系统版本: $os_info"
+        # --- 流量统计显示模块 ---
         if command -v vnstat &> /dev/null; then
-            local traffic_today=$(vnstat --oneline | cut -d';' -f6)
+            local vn_data=$(vnstat --oneline)
+            local traffic_today=$(echo "$vn_data" | cut -d';' -f6)
+            local traffic_month=$(echo "$vn_data" | cut -d';' -f11)
             _blue "● 今日已用流量: $traffic_today"
+            _blue "● 本月累计流量: $traffic_month"
         fi        
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
@@ -293,7 +297,7 @@ while true; do
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
     printf -- "  5) 安装 vnstat 流量统计\n"
-    printf -- "  q) 退出\n"
+    printf -- "  q) 撤退\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m请选择主指令: \033[0m" && read main_opt
 
