@@ -2,9 +2,10 @@
 
 # ====================================================
 # 将军自持版 Xray_install.sh 战略部署脚本 (全量完备版)
-# 1. 补全之前丢失的 Xray 核心安装、配置构建及服务部署逻辑[cite: 6]
+# 1. 补全之前丢失的 Xray 核心安装、配置构建及服务部署逻辑
 # 2. 完整保留源脚本的 BBR、vnstat 及所有颜色引擎源代码
-# 3. 严格锁定主菜单 1-5 战略序列，确保协议矩阵二级菜单绝对闭环[cite: 6]
+# 3. 严格锁定主菜单 1-5 战略序列，确保协议矩阵二级菜单绝对闭环
+# 4. 修复：强制回归分享链接自动生成与参数回显逻辑
 # ====================================================
 
 # 核心版本与路径定义
@@ -15,7 +16,7 @@ XRAY_BIN="$XRAY_DIR/bin/xray"
 XRAY_CONF="/etc/xray/config.json"
 CADDY_FILE="/etc/caddy/Caddyfile"
 
-# --- 核心颜色引擎 (全量保留)[cite: 5, 6] ---
+# --- 核心颜色引擎 (全量保留) ---
 _white() { printf -- "\033[37m%s\033[0m\n" "$*"; }
 _green() { printf -- "\033[32m%s\033[0m\n" "$*"; }
 _red() { printf -- "\033[31m%s\033[0m\n" "$*"; }
@@ -27,7 +28,7 @@ _gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }
 _brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }
 _purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }
 
-# --- 0. BBR 战略加速引擎 (源代码移植)[cite: 5, 6] ---
+# --- 0. BBR 战略加速引擎 (源代码移植) ---
 enable_bbr() {
     clear
     _yellow "========== BBR 战略状态巡视 =========="
@@ -75,7 +76,7 @@ init_system() {
     fi
 }
 
-# --- 2. 流量统计安装引擎 (源代码级移植)[cite: 5, 6] ---
+# --- 2. 流量统计安装引擎 (源代码级移植) ---
 install_vnstat() {
     if command -v vnstat &> /dev/null; then
         _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
@@ -112,8 +113,50 @@ install_vnstat() {
     read -p "按回车键返回主菜单..." temp
 }
 
+# --- 3. 分享链接生成引擎 (补全代码) ---
+generate_link() {
+    local IP=$(curl -s ifconfig.me)
+    local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
+    local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
+    local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
+    local net=$(jq -r '.inbounds[0].streamSettings.network' $XRAY_CONF)
+    local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
+    local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' $XRAY_CONF)
+    local remark="General_Master_${IP}"
 
-# --- 3. 核心配置构建引擎 (Xray 专用) ---
+    case "$proto" in
+        vless)
+            if [[ "$net" == "reality" ]]; then
+                echo "vless://${uuid}@${IP}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
+            else
+                echo "vless://${uuid}@${IP}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
+            fi ;;
+        vmess)
+            local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":""}' "$remark" "$IP" "$port" "$uuid" "$net" "$path")
+            echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
+        trojan)
+            echo "trojan://${uuid}@${IP}:${port}?type=${net}&path=${path}&security=none#${remark}" ;;
+        shadowsocks)
+            echo "ss://$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)@${IP}:${port}#${remark}" ;;
+    esac
+}
+
+# --- 4. 战报回显功能 (补全代码) ---
+show_params() {
+    clear
+    _red "==============================================="
+    _red "   将军自持版 Xray 部署战报 (实时获取)        "
+    _red "==============================================="
+    _green "  ● 服务器地址 (IP): $(curl -s ifconfig.me)"
+    _green "  ● 节点分享链接 (全选复制):"
+    _purple "$(generate_link)"
+    _blue "-----------------------------------------------"
+    _yellow "  提示：直接复制上方紫色链接，在客户端导入即可。"
+    _red "==============================================="
+    read -p "按回车键返回主菜单..." temp
+}
+
+# --- 5. 核心配置与服务管理 ---
 build_config() {
     local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local flow=$6
     local listen_ip="0.0.0.0"; [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
@@ -122,17 +165,9 @@ build_config() {
 {
   "log": { "loglevel": "warning" },
   "inbounds": [{
-    "port": $port,
-    "listen": "$listen_ip",
-    "protocol": "$proto",
-    "settings": {
-      "clients": [ { "id": "$secret", "flow": "$flow", "level": 0 } ],
-      "decryption": "none"
-    },
-    "streamSettings": {
-      "network": "$trans",
-      "${trans}Settings": { "path": "$path", "serviceName": "$path" }
-    }
+    "port": $port, "listen": "$listen_ip", "protocol": "$proto",
+    "settings": { "clients": [ { "id": "$secret", "flow": "$flow", "level": 0 } ], "decryption": "none" },
+    "streamSettings": { "network": "$trans", "${trans}Settings": { "path": "$path", "serviceName": "$path" } }
   }],
   "outbounds": [{ "protocol": "freedom" }]
 }
@@ -150,29 +185,10 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl daemon-reload && systemctl restart xray && systemctl enable xray
+    systemctl daemon-reload && systemctl restart xray && systemctl enable xray >/dev/null 2>&1
 }
 
-# --- 4. 查看现有配置 (状态监测)[cite: 5, 6] ---
-show_status() {
-    clear
-    _red "========== 当前作战部署状态 =========="
-    if [ -f "$XRAY_CONF" ]; then
-        _green "● Xray 状态: $(systemctl is-active xray)"[cite: 6]
-        _green "● TCP 加速: $(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')"[cite: 6]
-        local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
-        _blue "● 当前协议: $proto | 监听端口: $(jq -r '.inbounds[0].port' $XRAY_CONF)"[cite: 6]
-        if command -v vnstat &> /dev/null; then
-            local vn_data=$(vnstat --oneline)
-            _blue "● 今日已用流量: $(echo "$vn_data" | cut -d';' -f6)"[cite: 5, 6]
-        fi        
-    else
-        _red "目前未发现任何部署内容。"[cite: 6]
-    fi
-    read -p "按回车键返回主菜单..." temp
-}
-
-# --- 5. 协议矩阵二级菜单 (修复输入无效问题)[cite: 5] ---
+# --- 6. 协议矩阵二级菜单 (严格修复) ---
 deploy_menu() {
     while true; do
         clear
@@ -191,41 +207,42 @@ deploy_menu() {
         [[ "$opt" == "q" ]] && exit 0
 
         if ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
-            _red "警告：非法指令！请输入选择的协议编号【1-6】。"[cite: 5]
+            _red "警告：非法指令！请输入选择的协议编号【1-6】。"
             sleep 2; continue
         fi
 
-        UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""
+        UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""; PATH_STR="/ray"
         case $opt in
             1) PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision" ;;
             2) PROTO="vless"; TRANS="ws" ;;
             3) PROTO="trojan"; TRANS="ws" ;;
-            4) PROTO="shadowsocks"; TRANS="tcp" ;;
+            4) PROTO="shadowsocks"; TRANS="tcp"; UUID="linuxhobby_2026" ;;
             5) PROTO="vmess"; TRANS="ws" ;;
             6) PROTO="vmess"; TRANS="mkcp" ;;
         esac
         
         init_system
-        build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "/ray" "$FLOW"
+        build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$PATH_STR" "$FLOW"
         deploy_services
-        _green ">>> 报告将军：阵地部署成功！"[cite: 5]
+        _green ">>> 报告将军：阵地部署成功！"
+        show_params # 部署完立即回显链接
         exit 0
     done
 }
 
-# --- 核心主循环控制台 (严格排序)[cite: 6] ---
+# --- 核心主循环控制台 (绝对基准) ---
 while true; do
     clear
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.00.40                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.00.46                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 新增/更换配置 (支持核心协议)\n"
-    printf -- "  2) 查看现有配置 (状态监测)\n"
+    printf -- "  2) 查看现有配置 (显示分享链接)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
     printf -- "  5) 安装 vnstat 流量统计\n"
@@ -235,7 +252,7 @@ while true; do
 
     case $main_opt in
         1) deploy_menu ;;
-        2) show_status ;;
+        2) [[ -f "$XRAY_CONF" ]] && show_params || { _red "目前未发现任何部署内容。"; sleep 2; } ;;
         3) systemctl stop xray 2>/dev/null; rm -rf $XRAY_DIR; _red ">>> 阵地已清理。"; sleep 2 ;;
         4) enable_bbr ;;
         5) install_vnstat ;;
