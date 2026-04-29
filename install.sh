@@ -181,7 +181,8 @@ show_status() {
         fi        
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
-        local current_link=$(get_link "$proto" "$uuid" "$domain" "$path" "$trans" "true")
+        local is_tls_flag=$(jq -r '.inbounds[0].listen' $V2_CONF | grep -q '127.0.0.1' && echo "true" || echo "false")
+        local current_link=$(get_link "$proto" "$uuid" "$domain" "$path" "$trans" "$is_tls_flag" "$port")
         _red "$current_link"
         printf -- "------------------------------------\n"
     else
@@ -252,7 +253,11 @@ deploy_services() {
             cat > $CADDY_FILE <<EOF
 $domain {
     tls "$MY_EMAIL"
-    reverse_proxy $path localhost:$port {
+    @grpc {
+        protocol grpc
+        path /${path}/*
+    }
+    reverse_proxy @grpc localhost:$port {
         transport http {
             versions h2c
         }
@@ -286,21 +291,48 @@ EOF
 }
 
 get_link() {
-    local proto=$1; local secret=$2; local dom=$3; local path=$4; local trans=$5; local is_tls=$6
+    local proto=$1; local secret=$2; local dom=$3; local path=$4; local trans=$5; local is_tls=$6; local port=$7
     local ps_prefix="$dom"
     [[ -z "$dom" ]] && ps_prefix=$(curl -s ipv4.icanhazip.com)
     local ps="${ps_prefix}_$(date +%m%d)"    
     local path_enc=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$path'))")
     if [[ "$is_tls" == "true" ]]; then
         case $proto in
-            vless)  echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}" ;;
+            vless)
+                if [[ "$trans" == "grpc" ]]; then
+                    echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
+                else
+                    echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
+                fi ;;
             vmess)
                 local v_json=$(cat <<EOF
 {"v":"2","ps":"$ps","add":"$dom","port":"443","id":"$secret","aid":"0","net":"$trans","type":"none","host":"$dom","path":"$path","tls":"tls"}
 EOF
                 )
                 echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
-            trojan) echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}" ;;
+            trojan)
+                if [[ "$trans" == "grpc" ]]; then
+                    echo "trojan://${secret}@${dom}:443?security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
+                else
+                    echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
+                fi ;;
+            shadowsocks)
+                local ss_auth=$(echo -n "aes-256-gcm:${secret}" | base64 -w 0)
+                echo "ss://${ss_auth}@${dom}:443?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Btls%3Bhost%3D${dom}%3Bpath%3D${path_enc}#${ps}" ;;
+        esac
+    else
+        case $proto in
+            vmess)
+                local v_json=$(cat <<EOF
+{"v":"2","ps":"$ps","add":"$dom","port":"$port","id":"$secret","aid":"0","net":"$trans","type":"none","host":"","path":"$path","tls":""}
+EOF
+                )
+                echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
+            shadowsocks)
+                local ss_auth=$(echo -n "aes-256-gcm:${secret}" | base64 -w 0)
+                echo "ss://${ss_auth}@${ps_prefix}:${port}#${ps}" ;;
+            socks)
+                echo "socks5://${ps_prefix}:${port}#${ps}" ;;
         esac
     fi
 }
@@ -312,7 +344,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：人生若只如初见v1.0.0.7.18:59                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.0.0.19:41                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
@@ -348,7 +380,8 @@ while true; do
                 
                 printf -- "------------------------------------\n"
                 _red "● 战略分享链接:"
-                current_link=$(get_link "$current_proto" "$current_uuid" "$current_domain" "$current_path" "$current_trans" "true")
+                current_is_tls=$(jq -r '.inbounds[0].listen' $V2_CONF | grep -q '127.0.0.1' && echo "true" || echo "false")
+                current_link=$(get_link "$current_proto" "$current_uuid" "$current_domain" "$current_path" "$current_trans" "$current_is_tls" "$current_port")
                 _purple "$current_link"
                 printf -- "------------------------------------\n"
                 _red "警告：此操作将彻底销毁以上所有部署！【直接enter】默认不删除！"
@@ -398,7 +431,7 @@ while true; do
                     continue
                 fi
                 
-                UUID=$(cat /proc/sys/kernel/random/uuid); WPATH="/ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                UUID=$(cat /proc/sys/kernel/random/uuid)
                 DOMAIN=""; IS_TLS="false"; PROTO="vless"; TRANS="ws"; PORT=10086
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
@@ -419,6 +452,12 @@ while true; do
                     16) PROTO="socks"; TRANS="tcp"; PORT=12345 ;;
                     17) PROTO="socks"; TRANS="ws"; IS_TLS="true" ;;
                 esac
+                # gRPC serviceName 不能带斜杠，其他传输方式用 /rayXXXX 格式
+                if [[ "$TRANS" == "grpc" ]]; then
+                    WPATH="ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                else
+                    WPATH="/ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                fi
 
                 init_system
 
@@ -443,7 +482,7 @@ while true; do
                 _blue " 地址: ${DOMAIN:-$(curl -s ipv4.icanhazip.com)}"
                 _blue " UUID/密码: $UUID"
                 _blue "-----------------------------------------------"
-                SHARE_LINK=$(get_link "$PROTO" "$UUID" "$DOMAIN" "$WPATH" "$TRANS" "$IS_TLS")
+                SHARE_LINK=$(get_link "$PROTO" "$UUID" "$DOMAIN" "$WPATH" "$TRANS" "$IS_TLS" "$PORT")
                 [[ -n "$SHARE_LINK" ]] && printf -- "\033[1;32m${SHARE_LINK}\033[0m\n"
                 _green "==============================================="
                 exit 0 
