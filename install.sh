@@ -297,7 +297,7 @@ while true; do
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
     printf -- "  5) 安装 vnstat 流量统计\n"
-    printf -- "\033[31m     q) 退出 \033[0m\n"
+    printf -- "\033[31m     q) 撤退 \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m请选择主指令: \033[0m" && read main_opt
 
