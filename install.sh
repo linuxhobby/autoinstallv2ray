@@ -394,12 +394,12 @@ while true; do
             while true; do
                 clear
                 printf -- "========== 协议矩阵 (v2ray_install) ==========\n"
-                printf -- "  1) VLESS-WS-TLS【ok】       [保留，王牌：最稳且支持CDN]【推荐】\n"
-                printf -- "  2) VLESS-gRPC-TLS【ok】     [保留，极速：抗封锁性能优异]\n"
-                printf -- "  3) VMess-WS-TLS【ok】       [淘汰，经典：平稳支持CDN中转]\n"
-                printf -- "  4) VMess-gRPC-TLS【ok】     [淘汰，全能：多路复用响应快]\n"
-                printf -- "  5) Trojan-gRPC-TLS【ok】    [保留，极低延迟：模拟网页流量]\n"
-                printf -- "  6) Trojan-WS-TLS【ok】      [均衡：传统Trojan结合WS]\n"
+                printf -- "  1) VLESS-WS-TLS       [王牌：最稳且支持CDN]【推荐】\n"
+                printf -- "  2) VLESS-gRPC-TLS     [极速：抗封锁性能优异]\n"
+                printf -- "  3) VMess-WS-TLS       [经典：平稳支持CDN中转]\n"
+                printf -- "  4) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
+                printf -- "  5) Trojan-gRPC-TLS    [极低延迟：模拟网页流量]\n"
+                printf -- "  6) Trojan-WS-TLS      [传统Trojan结合WS]\n"
                 printf -- "-----------------------------------------------\n"
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
                 printf -- "===============================================\n"
