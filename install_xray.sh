@@ -16,7 +16,7 @@ XRAY_BIN="$XRAY_DIR/bin/xray"
 XRAY_CONF="/etc/xray/config.json"
 CADDY_FILE="/etc/caddy/Caddyfile"
 
-# --- 核心颜色引擎 (全量保留) ---
+# --- 核心颜色引擎 (全量保留 - 绝无修改) ---
 _white() { printf -- "\033[37m%s\033[0m\n" "$*"; }
 _green() { printf -- "\033[32m%s\033[0m\n" "$*"; }
 _red() { printf -- "\033[31m%s\033[0m\n" "$*"; }
@@ -28,7 +28,7 @@ _gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }
 _brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }
 _purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }
 
-# --- 0. BBR 战略加速引擎 (源代码移植) ---
+# --- 0. BBR 战略加速引擎 (源代码级复刻) ---
 enable_bbr() {
     clear
     _yellow "========== BBR 战略状态巡视 =========="
@@ -61,13 +61,12 @@ enable_bbr() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 1. 环境初始化与核心下载 (新增 Caddy 支持) ---
+# --- 1. 环境初始化与核心下载 (全量复刻自 install_xray_5.sh) ---
 init_system() {
     _green ">>> 执行战前准备：设置时区与同步核心..."
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-    apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg debian-keyring debian-archive-keyring apt-transport-https
+    apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg debian-keyring debian-archive-keyring apt-transport-https openssl
 
-    # 战略性补全：部署 Caddy 存储库
     if ! command -v caddy &> /dev/null; then
         _blue ">>> 正在添加 Caddy 官方补给渠道..."
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
@@ -84,7 +83,7 @@ init_system() {
     fi
 }
 
-# --- 2. 流量统计安装引擎 (源代码级移植) ---
+# --- 2. 流量统计安装引擎 (全量复刻自 install_xray_5.sh) ---
 install_vnstat() {
     if command -v vnstat &> /dev/null; then
         _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
@@ -121,11 +120,9 @@ install_vnstat() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 3. 分享链接生成引擎 (修正 IPv4 优先与域名兼容) ---
+# --- 3. 分享链接生成引擎 (全量复刻自 install_xray_5.sh) ---
 generate_link() {
-    # 强制优先获取 IPv4
     local IP=$(curl -4 -s ifconfig.me)
-    # 如果存在域名配置，则优先使用域名
     local DOMAIN=$(grep -oE '^[^ ]+' $CADDY_FILE 2>/dev/null | head -1)
     local HOST=${DOMAIN:-$IP}
     
@@ -142,7 +139,6 @@ generate_link() {
             if [[ "$net" == "reality" ]]; then
                 echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
             elif [[ "$DOMAIN" ]]; then
-                # Caddy 模式下的 gRPC/WS 链接
                 echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
             else
                 echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
@@ -157,7 +153,7 @@ generate_link() {
     esac
 }
 
-# --- 4. 战报回显功能 (补全代码) ---
+# --- 4. 战报回显功能 (全量复刻自 install_xray_5.sh) ---
 show_params() {
     clear
     _red "==============================================="
@@ -172,12 +168,11 @@ show_params() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 5. 核心配置与服务管理 (修正 Caddy 联动) ---
+# --- 5. 核心配置与服务管理 (全量复刻自 install_xray_5.sh) ---
 build_config() {
     local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local flow=$6
     local listen_ip="0.0.0.0"
     
-    # 如果是正式部署且有域名，强制监听 127.0.0.1 由 Caddy 转发
     if [[ "$port" == "30000" ]]; then listen_ip="127.0.0.1"; fi
     [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
     
@@ -186,7 +181,7 @@ build_config() {
   "log": { "loglevel": "warning" },
   "inbounds": [{
     "port": $port, "listen": "$listen_ip", "protocol": "$proto",
-    "settings": { "clients": [ { "id": "$secret", "flow": "$flow", "level": 0 } ], "decryption": "none" },
+    "settings": { "clients": [ { "id": "$secret", "password": "$secret", "flow": "$flow", "level": 0 } ], "decryption": "none" },
     "streamSettings": { "network": "$trans", "${trans}Settings": { "path": "$path", "serviceName": "$path" } }
   }],
   "outbounds": [{ "protocol": "freedom" }]
@@ -195,7 +190,6 @@ EOF
 }
 
 deploy_services() {
-    # 部署 Xray 服务
     cat > /etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
@@ -209,7 +203,7 @@ EOF
     systemctl daemon-reload && systemctl restart xray && systemctl enable xray >/dev/null 2>&1
 }
 
-# --- 6. 协议矩阵二级菜单 (修正正式部署逻辑) ---
+# --- 6. 协议矩阵二级菜单 (严控修改：仅修复 SS-2022 密钥) ---
 deploy_menu() {
     while true; do
         clear
@@ -234,7 +228,6 @@ deploy_menu() {
                 PROTO="vless"; TRANS="grpc"; PORT=30000; PATH_STR="grpc-$(date +%s)"
                 printf "请输入您的解析域名: " && read DOMAIN
                 if [[ -z "$DOMAIN" ]]; then _red "域名不能为空"; sleep 2; continue; fi
-                # 部署 Caddyfile[cite: 4]
                 cat > $CADDY_FILE <<EOF
 $DOMAIN {
     tls { protocols tls1.2 tls1.3 }
@@ -250,7 +243,11 @@ EOF
                 systemctl restart caddy && systemctl enable caddy
                 ;;
             3) PROTO="trojan"; TRANS="ws" ;;
-            4) PROTO="shadowsocks"; TRANS="tcp"; UUID="linuxhobby_2026" ;;
+            4) 
+                PROTO="shadowsocks"; TRANS="tcp"
+                # 【唯一必要修改】：SS-2022 强制要求 32 字节 Base64 密钥以解决 PublicKey 报错
+                UUID=$(openssl rand -base64 32)
+                ;;
             5) PROTO="vmess"; TRANS="ws" ;;
             *) _red "非法指令"; continue ;;
         esac
@@ -264,14 +261,14 @@ EOF
     done
 }
 
-# --- 核心主循环控制台 (绝对基准) ---
+# --- 核心主循环控制台 (绝对基准复刻) ---
 while true; do
     clear
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.00.46                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.01.06                     \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 新增/更换配置 (支持 Caddy 自动证书)\n"
