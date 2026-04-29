@@ -1,5 +1,6 @@
 # 介绍 (最后更新：2026/04/28)
- 建议使用debian12或13系统。  目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。
+建议使用debian12/13系统，或Ubuntu25/26。  
+目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。
 
 ## 一键下载安装 
 如果没有安装wget，先安装wget
@@ -50,4 +51,6 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray
 | **链接生成** | 调用 **Python3 (urllib.parse)**，确保特殊字符下的绝对兼容 |
 
 ---
+
+作者签名：人生若只如初见
 
