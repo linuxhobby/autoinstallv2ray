@@ -344,7 +344,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：claude v1.0.0.0.19:41                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.0.10.19:47                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
@@ -404,8 +404,8 @@ while true; do
                 printf -- "========== 协议战术矩阵 (v2ray_install) ==========\n"
                 printf -- "\033[1;31m  1) VLESS-WS-TLS【ok】       [王牌：最稳且支持CDN]【推荐】\033[0m\n"
                 printf -- "  2) VLESS-gRPC-TLS【ok】     [极速：抗封锁性能优异]\n"
-                printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
-                printf -- "\033[1;31m  4) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
+                printf -- "\033[1;31m  3) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
+                printf -- "  4) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
                 printf -- "  5) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
                 printf -- "  6) VMess-H2-TLS       [稳健：通过 H2 协议伪装]\n"
                 printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低]\n"
@@ -436,8 +436,8 @@ while true; do
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
                     2) PROTO="vless"; TRANS="grpc"; IS_TLS="true" ;;
-                    3) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
-                    4) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
+                    3) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
+                    4) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
                     5) PROTO="vmess"; TRANS="grpc"; IS_TLS="true" ;;
                     6) PROTO="vmess"; TRANS="h2"; IS_TLS="true" ;;
                     7) PROTO="vmess"; TRANS="tcp"; PORT=12345 ;;
