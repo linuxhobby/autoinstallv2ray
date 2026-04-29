@@ -38,7 +38,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray
 
 ---
 
-## 3. 脚本特点
+## 4. 脚本特点
 
 | 维度 | 特点 |
 | :--- | :--- |
