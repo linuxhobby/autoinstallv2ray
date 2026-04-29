@@ -7,7 +7,7 @@
 <img width="521" height="433" alt="image" src="https://github.com/user-attachments/assets/ba216600-9617-43e3-b74d-6f6ef86c4348" />
 
 目前支持的协议：  
-<img width="434" height="210" alt="image" src="https://github.com/user-attachments/assets/9d9b97e8-0e49-41e6-b73c-31da23cc7480" />
+<img width="585" height="379" alt="image" src="https://github.com/user-attachments/assets/6c6f1351-1911-4fc4-a07c-038778e075f2" />
 
 
 ## 安装之前......您需要
