@@ -5,20 +5,13 @@
 # 2、已经测试可用的协议
 #   1)VLESS-WS-TLS
 #   2)VLESS-gRPC-TLS
-#   4)VMess-WS-TLS
-#   5)VMess-gRPC-TLS
-#   10) Trojan-gRPC-TLS
-#   11) Trojan-WS-TLS
-#
-# =================== BUG 修改记录 ====================
-# 1、修复 VLESS/VMess/Trojan-H2-TLS 无法使用的问题：
-#    a) build_config: h2 的 httpSettings 补全 host 字段，新增第7参数 domain
-#    b) deploy_services: H2 协议单独生成 Caddyfile，使用路径匹配 + h2c 转发
-#    c) get_link: H2 分享链接 type 参数由 h2 修正为 http（客户端标准）
-#
+#   3)VMess-WS-TLS
+#   4)VMess-gRPC-TLS
+#   5) Trojan-gRPC-TLS
+#   6) Trojan-WS-TLS
 # ====================================================
 # 将军自持版 V2ray_install.sh 更新日志
-# 1. 2026/04/26，v1.0.0.0，支持17个协议全阵列，推荐以VLESS-WS-TLS协议安装，默认同步上海时区，集成 查看/新增/删除 管理逻辑，以及BBR和vnstat两个工具包。
+# 1. 2026/04/26，v1.0.0.0，支持多个协议全阵列，推荐以VLESS-WS-TLS协议安装，默认同步上海时区，集成 查看/新增/删除 管理逻辑，以及BBR和vnstat两个工具包。
 # 2. 2026/04/27，新增 BBR 战略加速模块
 # 3. 此版本经过 Debian12、Debian13、Ubuntu25、Ubuntu26 测试通过
 # 4. 一键指令 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
@@ -335,10 +328,9 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：claude v1.0.1.02.23:10                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.0.1.02.23:10                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
-    printf -- "\033[31m   H2协议淘汰，等待升级 \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持核心协议)\n"
@@ -393,16 +385,16 @@ while true; do
         2)
             while true; do
                 clear
-                printf -- "========== 协议矩阵 (v2ray_install) ==========\n"
+                printf -- "============ 协议矩阵 (v2ray_install) ============\n"
                 printf -- "  1) VLESS-WS-TLS       [王牌：最稳且支持CDN]【推荐】\n"
                 printf -- "  2) VLESS-gRPC-TLS     [极速：抗封锁性能优异]\n"
                 printf -- "  3) VMess-WS-TLS       [经典：平稳支持CDN中转]\n"
                 printf -- "  4) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
                 printf -- "  5) Trojan-gRPC-TLS    [极低延迟：模拟网页流量]\n"
                 printf -- "  6) Trojan-WS-TLS      [传统Trojan结合WS]\n"
-                printf -- "-----------------------------------------------\n"
+                printf -- "-------------------------------------------------\n"
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
-                printf -- "===============================================\n"
+                printf -- "=================================================\n"
                 printf -- "\033[31m请选择协议编号: \033[0m" && read opt
                 if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
                     [[ "$opt" == "0" ]] && break
