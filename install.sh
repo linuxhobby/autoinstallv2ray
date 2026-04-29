@@ -105,30 +105,32 @@ init_system() {
 
 # --- 2. 流量统计安装引擎 ---
 install_vnstat() {
-    _brown ">>> 正在开启 vnstat 战略流量统计部署..."
-    
-    # 1. 安装组件
-    if ! command -v vnstat &> /dev/null; then
-        _blue ">>> 正在从阵地补给站获取 vnstat..."
-        apt update && apt install -y vnstat
-    else
-        _green ">>> 检测结果：vnstat 已在阵地服役。"
+    # 1. 严格检测逻辑：如果已安装，直接提示并返回主菜单
+    if command -v vnstat &> /dev/null; then
+        _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
+        printf -- "------------------------------------\n"
+        read -p "按回车键返回主菜单..." temp
+        return # 直接退出函数，不执行后续网卡识别和配置
     fi
 
-    # 2. 智能网卡识别
+    # 2. 未安装时的安装流程
+    _brown ">>> 正在开启 vnstat 战略流量统计部署..."
+    _blue ">>> 正在从阵地补给站获取 vnstat..."
+    apt update && apt install -y vnstat
+
+    # 3. 智能网卡识别
     local interface=$(ip route get 8.8.8.8 2>/dev/null | grep -Po '(?<=dev )(\S+)' | head -1)
     if [ -z "$interface" ]; then
         interface=$(ls /sys/class/net | grep -v lo | head -1)
     fi
     _blue ">>> 锁定监控网卡: $interface"
 
-    # 3. 自动化配置
+    # 4. 自动化配置
     if [ -f "/etc/vnstat.conf" ]; then
         sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
-        _green ">>> 配置文件修正完毕。"
     fi
 
-    # 4. 初始化与启动
+    # 5. 初始化与启动
     vnstat -u -i "$interface" >/dev/null 2>&1
     systemctl enable vnstat >/dev/null 2>&1
     systemctl restart vnstat >/dev/null 2>&1
@@ -137,7 +139,6 @@ install_vnstat() {
     _red "使用指令说明:"
     _cyan " - vnstat -d : 查看每日流量"
     _cyan " - vnstat -m : 查看每月流量"
-    _cyan " - vnstat -i $interface : 查看日/月流量"
     _cyan " - vnstat -l : 实时流量监控"
     printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
