@@ -83,7 +83,7 @@ init_system() {
     
     if [[ "$IS_TLS" == "true" ]]; then
         unset MY_EMAIL
-        printf -- "\033[36m请输入用于申请证书的邮箱，用于证书过期提醒（如不需要可直接【回车键】）: \033[0m\n"
+        printf -- "\033[31m请输入用于申请证书的邮箱，用于证书过期提醒（如不需要可直接【回车键】）: \033[0m\n"
         read -p "[默认: linuxhobby@tinkmail.me]: " input_email
         MY_EMAIL=${input_email:-"linuxhobby@tinkmail.me"}
         _blue ">>> 战略目标已锁定，证书邮箱: $MY_EMAIL"
@@ -127,10 +127,10 @@ install_vnstat() {
 
     _green ">>> 部署成功！"
     _red "使用指令说明:"
-    _cyan " - vnstat -d : 查看每日流量"
-    _cyan " - vnstat -m : 查看每月流量"
-    _cyan " - vnstat -i $interface : 查看每日/月流量"
-    _cyan " - vnstat -l : 实时流量监控"
+    _purple " - vnstat -d : 查看每日流量"
+    _purple " - vnstat -m : 查看每月流量"
+    _purple " - vnstat -i $interface : 查看每日/月流量"
+    _purple " - vnstat -l : 实时流量监控"
     printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
 }
@@ -163,9 +163,13 @@ show_status() {
         [[ -n "$path" ]] && _blue "● 路径/服务名: $path"
         _blue "● 系统时间: $(date)"
         _blue "● 系统版本: $os_info"
+        # --- 流量统计显示模块 ---
         if command -v vnstat &> /dev/null; then
-            local traffic_today=$(vnstat --oneline | cut -d';' -f6)
+            local vn_data=$(vnstat --oneline)
+            local traffic_today=$(echo "$vn_data" | cut -d';' -f6)
+            local traffic_month=$(echo "$vn_data" | cut -d';' -f11)
             _blue "● 今日已用流量: $traffic_today"
+            _blue "● 本月累计流量: $traffic_month"
         fi        
         printf -- "------------------------------------\n"
         _purple "● 战略分享链接:"
@@ -401,7 +405,7 @@ while true; do
                         resolved_ip=$(dig +short "$DOMAIN" || host "$DOMAIN" | awk '/has address/ { print $4 }' | head -n1)
                         public_ip=$(curl -s ipv4.icanhazip.com)
                         if [[ "$resolved_ip" == "$public_ip" ]]; then
-                            _green "解析一致：$public_ip，可以作战！"; break
+                            _green "解析一致：$public_ip，可以发起进攻！"; break
                         else
                             _red "解析不匹配或未生效。"; printf -- "\033[31m强制部署？(y/n): \033[0m" && read force_run
                             [[ "$force_run" == "y" ]] && break
