@@ -427,7 +427,7 @@ while true; do
                 printf -- "\033[1;31m  1) VLESS-WS-TLS【ok】       [王牌：最稳且支持CDN]【推荐】\033[0m\n"
                 printf -- "  2) VLESS-gRPC-TLS【ok】     [极速：抗封锁性能优异]\n"
                 printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
-                printf -- "\033[1;31m  4) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
+                printf -- "  4) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
                 printf -- "  5) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
                 printf -- "  6) VMess-H2-TLS       [稳健：通过 H2 协议伪装]\n"
                 printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低]\n"
