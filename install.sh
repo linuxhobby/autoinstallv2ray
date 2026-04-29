@@ -433,7 +433,7 @@ while true; do
                 printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低，链接未生成地址等信息，无法使用]\n"
                 printf -- "  8) VMess-mKCP         [强力：UDP加速抗丢包，链接未生成地址等信息，无法使用]\n"
                 printf -- "  9) VMess-QUIC         [抗断：移动网络连接稳定，链接未生成地址等信息，无法使用]\n"
-                printf -- " 10) Trojan-gRPC-TLS    [极低延迟：模拟网页流量]\n"
+                printf -- " 10) Trojan-gRPC-TLS【ok】    [极低延迟：模拟网页流量]\n"
                 printf -- " 11) Trojan-WS-TLS      [均衡：传统Trojan结合WS]\n"
                 printf -- " 12) Trojan-H2-TLS      [隐蔽：H2 加持网页模拟]\n"
                 printf -- " 13) Shadowsocks        [极致轻量：路由器首选]\n"
