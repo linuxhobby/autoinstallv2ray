@@ -3,6 +3,9 @@
 
 建议使用debian12/13系统，或Ubuntu25/26。  
 目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。
+目前支持的协议：
+<img width="434" height="210" alt="image" src="https://github.com/user-attachments/assets/9d9b97e8-0e49-41e6-b73c-31da23cc7480" />
+
 
 ## 安装之前......您需要
 * **1台带公网IPv4/ipv6的VPS服务器**
