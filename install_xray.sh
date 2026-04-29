@@ -2,10 +2,10 @@
 
 # ====================================================
 # 将军自持版 Xray_install.sh 战略部署脚本 (全量完备版)
-# 1. 补全之前丢失的 Xray 核心安装、配置构建及服务部署逻辑
+# 1. 补全 Xray 核心安装与 Caddy 自动化证书联动逻辑
 # 2. 完整保留源脚本的 BBR、vnstat 及所有颜色引擎源代码
 # 3. 严格锁定主菜单 1-5 战略序列，确保协议矩阵二级菜单绝对闭环
-# 4. 修复：强制回归分享链接自动生成与参数回显逻辑
+# 4. 修复：强制 IPv4 提取逻辑，确保 macOS 客户端链接百分百可用
 # ====================================================
 
 # 核心版本与路径定义
@@ -61,11 +61,19 @@ enable_bbr() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 1. 环境初始化与核心下载 ---
+# --- 1. 环境初始化与核心下载 (新增 Caddy 支持) ---
 init_system() {
     _green ">>> 执行战前准备：设置时区与同步核心..."
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-    apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg
+    apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg debian-keyring debian-archive-keyring apt-transport-https
+
+    # 战略性补全：部署 Caddy 存储库
+    if ! command -v caddy &> /dev/null; then
+        _blue ">>> 正在添加 Caddy 官方补给渠道..."
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt update && apt install caddy -y
+    fi
 
     mkdir -p $XRAY_DIR/bin
     if [ ! -f "$XRAY_BIN" ]; then
@@ -113,31 +121,39 @@ install_vnstat() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 3. 分享链接生成引擎 (补全代码) ---
+# --- 3. 分享链接生成引擎 (修正 IPv4 优先与域名兼容) ---
 generate_link() {
-    local IP=$(curl -s ifconfig.me)
+    # 强制优先获取 IPv4
+    local IP=$(curl -4 -s ifconfig.me)
+    # 如果存在域名配置，则优先使用域名
+    local DOMAIN=$(grep -oE '^[^ ]+' $CADDY_FILE 2>/dev/null | head -1)
+    local HOST=${DOMAIN:-$IP}
+    
     local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
     local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
     local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
     local net=$(jq -r '.inbounds[0].streamSettings.network' $XRAY_CONF)
     local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
     local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' $XRAY_CONF)
-    local remark="General_Master_${IP}"
+    local remark="General_Master_${HOST}"
 
     case "$proto" in
         vless)
             if [[ "$net" == "reality" ]]; then
-                echo "vless://${uuid}@${IP}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
+                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
+            elif [[ "$DOMAIN" ]]; then
+                # Caddy 模式下的 gRPC/WS 链接
+                echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
             else
-                echo "vless://${uuid}@${IP}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
+                echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
             fi ;;
         vmess)
-            local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":""}' "$remark" "$IP" "$port" "$uuid" "$net" "$path")
+            local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":"%s"}' "$remark" "$HOST" "${DOMAIN:+443}${DOMAIN:-$port}" "$uuid" "$net" "$path" "${DOMAIN:+tls}")
             echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
         trojan)
-            echo "trojan://${uuid}@${IP}:${port}?type=${net}&path=${path}&security=none#${remark}" ;;
+            echo "trojan://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none#${remark}" ;;
         shadowsocks)
-            echo "ss://$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)@${IP}:${port}#${remark}" ;;
+            echo "ss://$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)@${HOST}:${port}#${remark}" ;;
     esac
 }
 
@@ -147,7 +163,7 @@ show_params() {
     _red "==============================================="
     _red "   将军自持版 Xray 部署战报 (实时获取)        "
     _red "==============================================="
-    _green "  ● 服务器地址 (IP): $(curl -s ifconfig.me)"
+    _green "  ● 服务器 IPv4 地址: $(curl -4 -s ifconfig.me)"
     _green "  ● 节点分享链接 (全选复制):"
     _purple "$(generate_link)"
     _blue "-----------------------------------------------"
@@ -156,10 +172,14 @@ show_params() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 5. 核心配置与服务管理 ---
+# --- 5. 核心配置与服务管理 (修正 Caddy 联动) ---
 build_config() {
     local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local flow=$6
-    local listen_ip="0.0.0.0"; [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
+    local listen_ip="0.0.0.0"
+    
+    # 如果是正式部署且有域名，强制监听 127.0.0.1 由 Caddy 转发
+    if [[ "$port" == "30000" ]]; then listen_ip="127.0.0.1"; fi
+    [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
     
     cat > $XRAY_CONF <<EOF
 {
@@ -175,6 +195,7 @@ EOF
 }
 
 deploy_services() {
+    # 部署 Xray 服务
     cat > /etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
@@ -188,17 +209,16 @@ EOF
     systemctl daemon-reload && systemctl restart xray && systemctl enable xray >/dev/null 2>&1
 }
 
-# --- 6. 协议矩阵二级菜单 (严格修复) ---
+# --- 6. 协议矩阵二级菜单 (修正正式部署逻辑) ---
 deploy_menu() {
     while true; do
         clear
-        printf -- "============ Xray 协议矩阵 (按级重排) ============\n"
-        printf -- "  1) VLESS-REALITY-Vision (默认王牌)\n"
-        printf -- "  2) VLESS-WS/gRPC/XHTTP-TLS (全能 Xray)\n"
+        printf -- "============ Xray 协议矩阵 (正式部署版) ============\n"
+        printf -- "  1) VLESS-REALITY-Vision (直连王牌)\n"
+        printf -- "  2) VLESS-gRPC-TLS (Caddy 正式联动)\n"
         printf -- "  3) Trojan-WS/gRPC-TLS (模拟网页)\n"
         printf -- "  4) Shadowsocks 2022 (极简稳定)\n"
-        printf -- "  5) VMess-WS/gRPC-TLS (CDN 必备)\n"
-        printf -- "  6) VMess-TCP/mKCP (直连对抗)\n"
+        printf -- "  5) VMess-WS-TLS (CDN 必备)\n"
         printf -- "-------------------------------------------------\n"
         printf -- "  0) 返回主菜单			q) 退出程序\n"
         printf -- "请选择编号: " && read opt
@@ -206,26 +226,40 @@ deploy_menu() {
         [[ "$opt" == "0" ]] && break
         [[ "$opt" == "q" ]] && exit 0
 
-        if ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
-            _red "警告：非法指令！请输入选择的协议编号【1-6】。"
-            sleep 2; continue
-        fi
-
         UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""; PATH_STR="/ray"
+        
         case $opt in
             1) PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision" ;;
-            2) PROTO="vless"; TRANS="ws" ;;
+            2) 
+                PROTO="vless"; TRANS="grpc"; PORT=30000; PATH_STR="grpc-$(date +%s)"
+                printf "请输入您的解析域名: " && read DOMAIN
+                if [[ -z "$DOMAIN" ]]; then _red "域名不能为空"; sleep 2; continue; fi
+                # 部署 Caddyfile[cite: 4]
+                cat > $CADDY_FILE <<EOF
+$DOMAIN {
+    tls { protocols tls1.2 tls1.3 }
+    reverse_proxy /$PATH_STR/* {
+        transport http { versions h2c }
+        to localhost:30000
+    }
+    reverse_proxy https://www.bing.com {
+        header_up Host {upstream_hostport}
+    }
+}
+EOF
+                systemctl restart caddy && systemctl enable caddy
+                ;;
             3) PROTO="trojan"; TRANS="ws" ;;
             4) PROTO="shadowsocks"; TRANS="tcp"; UUID="linuxhobby_2026" ;;
             5) PROTO="vmess"; TRANS="ws" ;;
-            6) PROTO="vmess"; TRANS="mkcp" ;;
+            *) _red "非法指令"; continue ;;
         esac
         
         init_system
         build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$PATH_STR" "$FLOW"
         deploy_services
         _green ">>> 报告将军：阵地部署成功！"
-        show_params # 部署完立即回显链接
+        show_params
         exit 0
     done
 }
@@ -236,12 +270,11 @@ while true; do
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
-    printf -- "\033[31m   名称：xray_install 战略管理终端v1.0       \033[0m\n"
+    printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
     printf -- "\033[31m   特征码：v1.04.30.00.46                     \033[0m\n"
-    printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "  1) 新增/更换配置 (支持核心协议)\n"
+    printf -- "  1) 新增/更换配置 (支持 Caddy 自动证书)\n"
     printf -- "  2) 查看现有配置 (显示分享链接)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
     printf -- "  4) 开启 BBR 战略加速\n"
@@ -253,7 +286,7 @@ while true; do
     case $main_opt in
         1) deploy_menu ;;
         2) [[ -f "$XRAY_CONF" ]] && show_params || { _red "目前未发现任何部署内容。"; sleep 2; } ;;
-        3) systemctl stop xray 2>/dev/null; rm -rf $XRAY_DIR; _red ">>> 阵地已清理。"; sleep 2 ;;
+        3) systemctl stop xray caddy 2>/dev/null; rm -rf $XRAY_DIR; _red ">>> 阵地已清理。"; sleep 2 ;;
         4) enable_bbr ;;
         5) install_vnstat ;;
         q) exit 0 ;;
