@@ -295,12 +295,12 @@ while true; do
     # --- 新增：获取系统版本信息 ---
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "\033[31m   作者：linuxhobby       \033[0m\n"
-    printf -- "\033[31m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   版本特征码：人生若只如初见v99912345                     \033[0m\n"
-    printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
-    printf -- "\033[31m   当前阵地环境：$OS_NAME \033[0m\n" 
-    printf -- "\033[31m===============================================\033[0m\n"
+    printf -- "\033[32m   作者：linuxhobby       \033[0m\n"
+    printf -- "\033[33m   将军自持版 v2ray_install 战略管理终端v1.0       \033[0m\n"
+    printf -- "\033[34m   版本特征码：人生若只如初见v99912345                     \033[0m\n"
+    printf -- "\033[35m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
+    printf -- "\033[36m   当前阵地环境：$OS_NAME \033[0m\n" 
+    printf -- "\033[37m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
     printf -- "  3) 删除所有配置 (撤除部署)\n"
