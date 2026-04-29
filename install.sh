@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # =================== BUG 修改记录 ====================
-# 1、修改
-#
+# 1、修复 VLESS/VMess/Trojan-H2-TLS 无法使用的问题：
+#    a) build_config: h2 的 httpSettings 补全 host 字段，新增第7参数 domain
+#    b) deploy_services: H2 协议单独生成 Caddyfile，使用路径匹配 + h2c 转发
+#    c) get_link: H2 分享链接 type 参数由 h2 修正为 http（客户端标准）
 #
 # ====================================================
 # 将军自持版 V2ray_install.sh 更新日志
@@ -194,12 +196,12 @@ show_status() {
 
 # --- 3. 核心构建引擎 ---
 build_config() {
-    local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local is_tls=$6
+    local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local is_tls=$6; local domain=$7
     local stream_json=""
     case $trans in
         ws)   stream_json="\"network\": \"ws\", \"wsSettings\": { \"path\": \"$path\" }" ;;
         grpc) stream_json="\"network\": \"grpc\", \"grpcSettings\": { \"serviceName\": \"$path\" }" ;;
-        h2)   stream_json="\"network\": \"h2\", \"httpSettings\": { \"path\": \"$path\" }" ;;
+        h2)   stream_json="\"network\": \"h2\", \"httpSettings\": { \"path\": \"$path\", \"host\": [\"$domain\"] }" ;;
         mkcp) stream_json="\"network\": \"kcp\", \"kcpSettings\": { \"header\": { \"type\": \"none\" } }" ;;
         quic) stream_json="\"network\": \"quic\", \"quicSettings\": { \"header\": { \"type\": \"none\" } }" ;;
         *)    stream_json="\"network\": \"tcp\"" ;;
@@ -248,7 +250,7 @@ deploy_services() {
         mkdir -p /etc/caddy /var/lib/caddy
         chown -R caddy:caddy /etc/caddy /var/lib/caddy
         
-# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
+# --- 针对 gRPC/H2 优化 Caddyfile 生成逻辑 ---
         if [[ "$TRANS" == "grpc" ]]; then
             cat > $CADDY_FILE <<EOF
 $domain {
@@ -264,6 +266,20 @@ $domain {
     }
 }
 EOF
+        elif [[ "$TRANS" == "h2" ]]; then
+            cat > $CADDY_FILE <<EOF
+$domain {
+    tls "$MY_EMAIL"
+    @h2path {
+        path ${path}*
+    }
+    reverse_proxy @h2path 127.0.0.1:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}
+EOF
         else
             cat > $CADDY_FILE <<EOF
 $domain {
@@ -272,7 +288,7 @@ $domain {
 }
 EOF
         fi
-# --- 针对 gRPC 优化 Caddyfile 生成逻辑 ---
+# --- 针对 gRPC/H2 优化 Caddyfile 生成逻辑 ---
 
         systemctl daemon-reload
         systemctl restart caddy
@@ -301,18 +317,23 @@ get_link() {
             vless)
                 if [[ "$trans" == "grpc" ]]; then
                     echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
+                elif [[ "$trans" == "h2" ]]; then
+                    echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=http&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 else
                     echo "vless://${secret}@${dom}:443?encryption=none&security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 fi ;;
             vmess)
+                local vmess_net="$trans"; [[ "$trans" == "h2" ]] && vmess_net="http"
                 local v_json=$(cat <<EOF
-{"v":"2","ps":"$ps","add":"$dom","port":"443","id":"$secret","aid":"0","net":"$trans","type":"none","host":"$dom","path":"$path","tls":"tls"}
+{"v":"2","ps":"$ps","add":"$dom","port":"443","id":"$secret","aid":"0","net":"$vmess_net","type":"none","host":"$dom","path":"$path","tls":"tls"}
 EOF
                 )
                 echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
             trojan)
                 if [[ "$trans" == "grpc" ]]; then
                     echo "trojan://${secret}@${dom}:443?security=tls&type=grpc&serviceName=${path}&sni=${dom}#${ps}"
+                elif [[ "$trans" == "h2" ]]; then
+                    echo "trojan://${secret}@${dom}:443?security=tls&type=http&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 else
                     echo "trojan://${secret}@${dom}:443?security=tls&type=${trans}&host=${dom}&path=${path_enc}&sni=${dom}#${ps}"
                 fi ;;
@@ -344,9 +365,10 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：claude v1.0.0.99.19:51                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.0.11.20:01                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
-    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
+    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
+    printf -- "\033[31m   测试 3）VLESS-H2-TLS \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
@@ -404,8 +426,8 @@ while true; do
                 printf -- "========== 协议战术矩阵 (v2ray_install) ==========\n"
                 printf -- "\033[1;31m  1) VLESS-WS-TLS【ok】       [王牌：最稳且支持CDN]【推荐】\033[0m\n"
                 printf -- "  2) VLESS-gRPC-TLS【ok】     [极速：抗封锁性能优异]\n"
-                printf -- "\033[1;31m  3) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
-                printf -- "  4) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
+                printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
+                printf -- "\033[1;31m  4) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
                 printf -- "  5) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
                 printf -- "  6) VMess-H2-TLS       [稳健：通过 H2 协议伪装]\n"
                 printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低]\n"
@@ -436,8 +458,8 @@ while true; do
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
                     2) PROTO="vless"; TRANS="grpc"; IS_TLS="true" ;;
-                    3) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
-                    4) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
+                    3) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
+                    4) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
                     5) PROTO="vmess"; TRANS="grpc"; IS_TLS="true" ;;
                     6) PROTO="vmess"; TRANS="h2"; IS_TLS="true" ;;
                     7) PROTO="vmess"; TRANS="tcp"; PORT=12345 ;;
@@ -475,7 +497,7 @@ while true; do
                         fi
                     done
                 fi
-                build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$WPATH" "$IS_TLS"
+                build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$WPATH" "$IS_TLS" "$DOMAIN"
                 deploy_services "$DOMAIN" "$WPATH" "$PORT" "$IS_TLS"
                 _green "==============================================="
                 _blue " 协议: $PROTO | 传输: $TRANS"
