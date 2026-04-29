@@ -172,7 +172,7 @@ show_status() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 5. 协议矩阵二级菜单 (全功能闭环)[cite: 6] ---
+# --- 5. 协议矩阵二级菜单 (修复输入无效问题)[cite: 5] ---
 deploy_menu() {
     while true; do
         clear
@@ -185,15 +185,17 @@ deploy_menu() {
         printf -- "  6) VMess-TCP/mKCP (直连对抗)\n"
         printf -- "-------------------------------------------------\n"
         printf -- "  0) 返回主菜单			q) 退出程序\n"
-                if [[ -z "$opt" ]] || ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
-                    [[ "$opt" == "0" ]] && break
-                    [[ "$opt" == "q" ]] && exit 0
-                    _red "警告：非法指令！请输入选择的协议编号【1-6】。"
-                    sleep 2
-                    continue
-                fi
+        printf -- "请选择编号: " && read opt
 
-        UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; PROTO="vless"; TRANS="ws"; FLOW=""
+        [[ "$opt" == "0" ]] && break
+        [[ "$opt" == "q" ]] && exit 0
+
+        if ! [[ "$opt" =~ ^(1|2|3|4|5|6)$ ]]; then
+            _red "警告：非法指令！请输入选择的协议编号【1-6】。"[cite: 5]
+            sleep 2; continue
+        fi
+
+        UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""
         case $opt in
             1) PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision" ;;
             2) PROTO="vless"; TRANS="ws" ;;
@@ -201,13 +203,12 @@ deploy_menu() {
             4) PROTO="shadowsocks"; TRANS="tcp" ;;
             5) PROTO="vmess"; TRANS="ws" ;;
             6) PROTO="vmess"; TRANS="mkcp" ;;
-            *) continue ;;
         esac
         
         init_system
         build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "/ray" "$FLOW"
         deploy_services
-        _green ">>> 报告将军：阵地部署成功！"
+        _green ">>> 报告将军：阵地部署成功！"[cite: 5]
         exit 0
     done
 }
@@ -219,7 +220,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：v1.0.1.02.23:10                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.00.40                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
