@@ -2,10 +2,19 @@
 
 # =================== BUG 修改记录 ====================
 # 1、claude版本
-# 2、三个协议可用
+# 2、已经测试可用的协议
 #   1)VLESS-WS-TLS
 #   2)VLESS-gRPC-TLS
 #   4)VMess-WS-TLS
+#   5)VMess-gRPC-TLS
+#   10) Trojan-gRPC-TLS
+#   11) Trojan-WS-TLS
+#
+# =================== BUG 修改记录 ====================
+# 1、修复 VLESS/VMess/Trojan-H2-TLS 无法使用的问题：
+#    a) build_config: h2 的 httpSettings 补全 host 字段，新增第7参数 domain
+#    b) deploy_services: H2 协议单独生成 Caddyfile，使用路径匹配 + h2c 转发
+#    c) get_link: H2 分享链接 type 参数由 h2 修正为 http（客户端标准）
 #
 # ====================================================
 # 将军自持版 V2ray_install.sh 更新日志
@@ -366,9 +375,10 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：claude v1.0.0.99.19:51                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.1.02.23:10                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
-    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
+    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
+    printf -- "\033[31m   H2协议淘汰，等待升级 \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "  1) 查看现有配置 (状态监测)\n"
     printf -- "  2) 新增/更换配置 (支持17个协议阵列)\n"
@@ -423,24 +433,26 @@ while true; do
         2)
             while true; do
                 clear
-                printf -- "========== 协议战术矩阵 (v2ray_install) ==========\n"
-                printf -- "\033[1;31m  1) VLESS-WS-TLS【ok】       [王牌：最稳且支持CDN]【推荐】\033[0m\n"
-                printf -- "  2) VLESS-gRPC-TLS【ok】     [极速：抗封锁性能优异]\n"
-                printf -- "\033[1;31m  3) VMess-WS-TLS【ok】       [经典：平稳支持CDN中转]\033[0m\n"
-                printf -- "  4) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
-                printf -- "  5) VMess-gRPC-TLS     [全能：多路复用响应快]\n"
-                printf -- "  6) VMess-H2-TLS       [稳健：通过 H2 协议伪装]\n"
-                printf -- "  7) VMess-TCP          [基础：无伪装，延迟最低]\n"
-                printf -- "  8) VMess-mKCP         [强力：UDP加速抗丢包]\n"
-                printf -- "  9) VMess-QUIC         [抗断：移动网络连接稳定]\n"
-                printf -- " 10) Trojan-gRPC-TLS    [极低延迟：模拟网页流量]\n"
-                printf -- " 11) Trojan-WS-TLS      [均衡：传统Trojan结合WS]\n"
+                printf -- "========== 协议矩阵 (v2ray_install) ==========\n"
+                printf -- "  1) VLESS-WS-TLS【ok】       [保留，王牌：最稳且支持CDN]【推荐】\n"
+                printf -- "  2) VLESS-gRPC-TLS【ok】     [保留，极速：抗封锁性能优异]\n"
+                printf -- "  3) VLESS-H2-TLS       [高效：Web 伪装传输变体]\n"
+                printf -- "  4) VMess-WS-TLS【ok】       [淘汰，经典：平稳支持CDN中转]\n"
+                printf -- "  5) VMess-gRPC-TLS【ok】     [淘汰，全能：多路复用响应快]\n"
+                printf -- "  6) VMess-H2-TLS       [淘汰，稳健：通过 H2 协议伪装]\n"
+                printf -- "  7) VMess-TCP          [淘汰，基础：无伪装，延迟最低，无需输入域名，链接未生成地址等信息，无法使用]\n"
+                printf -- "  8) VMess-mKCP         [淘汰，强力：UDP加速抗丢包，无需输入域名，链接未生成地址等信息，无法使用]\n"
+                printf -- "  9) VMess-QUIC         [淘汰，抗断：移动网络连接稳定，无需输入域名，链接未生成地址等信息，无法使用]\n"
+                printf -- " 10) Trojan-gRPC-TLS【ok】    [保留，极低延迟：模拟网页流量]\n"
+                printf -- " 11) Trojan-WS-TLS【ok】      [均衡：传统Trojan结合WS]\n"
                 printf -- " 12) Trojan-H2-TLS      [隐蔽：H2 加持网页模拟]\n"
-                printf -- " 13) Shadowsocks        [极致轻量：路由器首选]\n"
-                printf -- " 14) Shadowsocks-WS     [灵活：SS 加入 WS 传输]\n"
-                printf -- " 15) Shadowsocks-QUIC   [抗封：SS 结合 QUIC 传输]\n"
-                printf -- " 16) Socks-TCP          [原始：无加密内网测试]\n"
-                printf -- " 17) Socks-WS           [兼容：Socks 结合 WS 转发]\n"
+                printf -- " 13) Shadowsocks        [保留，极致轻量：路由器首选，无需输入域名，类似H2无错误]\n"
+                printf -- " 14) Shadowsocks-WS     [灵活：SS 加入 WS 传输，错误信息：line 508: prin-tf: B: invalid format character]\n"
+                printf -- " 15) Shadowsocks-QUIC   [淘汰，抗封：SS 结合 QUIC 传输，无需输入域名，类似H2无错误]\n"
+                printf -- " 16) Socks-TCP          [淘汰，原始：无加密内网测试,可删除]\n"
+                printf -- " 17) Socks-WS           [淘汰，兼容：Socks 结合 WS 转发，最后没有生成分享链接]\n"
+                printf -- " 18) VLESS-TCP-REALITY          [保留，即将新增]\n"
+                printf -- " 19) VLESS-REALITY-VISION           [即将新增]\n"
                 printf -- "-----------------------------------------------\n"
                 printf -- "  0) 返回主菜单        q) 退出程序\n"
                 printf -- "===============================================\n"
@@ -458,8 +470,8 @@ while true; do
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
                     2) PROTO="vless"; TRANS="grpc"; IS_TLS="true" ;;
-                    3) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
-                    4) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
+                    3) PROTO="vless"; TRANS="h2"; IS_TLS="true" ;;
+                    4) PROTO="vmess"; TRANS="ws"; IS_TLS="true" ;;
                     5) PROTO="vmess"; TRANS="grpc"; IS_TLS="true" ;;
                     6) PROTO="vmess"; TRANS="h2"; IS_TLS="true" ;;
                     7) PROTO="vmess"; TRANS="tcp"; PORT=12345 ;;
@@ -500,12 +512,12 @@ while true; do
                 build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$WPATH" "$IS_TLS" "$DOMAIN"
                 deploy_services "$DOMAIN" "$WPATH" "$PORT" "$IS_TLS"
                 _green "==============================================="
-                _blue " 协议: $PROTO | 传输: $TRANS"
-                _blue " 地址: ${DOMAIN:-$(curl -s ipv4.icanhazip.com)}"
+                _blue " 协议类型: $PROTO | 传输模式: $TRANS"
+                _blue " 服务器地址: ${DOMAIN:-$(curl -s ipv4.icanhazip.com)}"
                 _blue " UUID/密码: $UUID"
                 _blue "-----------------------------------------------"
                 SHARE_LINK=$(get_link "$PROTO" "$UUID" "$DOMAIN" "$WPATH" "$TRANS" "$IS_TLS" "$PORT")
-                [[ -n "$SHARE_LINK" ]] && printf -- "\033[1;32m${SHARE_LINK}\033[0m\n"
+                [[ -n "$SHARE_LINK" ]] && printf -- "\033[1;31m${SHARE_LINK}\033[0m\n"
                 _green "==============================================="
                 exit 0 
             done
