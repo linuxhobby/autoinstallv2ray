@@ -253,7 +253,11 @@ deploy_services() {
             cat > $CADDY_FILE <<EOF
 $domain {
     tls "$MY_EMAIL"
-    reverse_proxy $path localhost:$port {
+    @grpc {
+        protocol grpc
+        path /${path}/*
+    }
+    reverse_proxy @grpc localhost:$port {
         transport http {
             versions h2c
         }
@@ -340,7 +344,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
     printf -- "\033[31m   名称：v2ray_install 战略管理终端v1.0       \033[0m\n"
-    printf -- "\033[31m   特征码：人生若只如初见v1.0.0.7.18:59                     \033[0m\n"
+    printf -- "\033[31m   特征码：claude v1.0.0.0.19:21                     \033[0m\n"
     printf -- "\033[31m   适用环境：Debian12/13、Ubuntu25/26         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n" 
     printf -- "\033[31m===============================================\033[0m\n"
@@ -427,7 +431,7 @@ while true; do
                     continue
                 fi
                 
-                UUID=$(cat /proc/sys/kernel/random/uuid); WPATH="/ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                UUID=$(cat /proc/sys/kernel/random/uuid)
                 DOMAIN=""; IS_TLS="false"; PROTO="vless"; TRANS="ws"; PORT=10086
                 case $opt in
                     1) PROTO="vless"; TRANS="ws"; IS_TLS="true" ;;
@@ -448,6 +452,12 @@ while true; do
                     16) PROTO="socks"; TRANS="tcp"; PORT=12345 ;;
                     17) PROTO="socks"; TRANS="ws"; IS_TLS="true" ;;
                 esac
+                # gRPC serviceName 不能带斜杠，其他传输方式用 /rayXXXX 格式
+                if [[ "$TRANS" == "grpc" ]]; then
+                    WPATH="ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                else
+                    WPATH="/ray$(cat /proc/sys/kernel/random/uuid | cut -c1-4)"
+                fi
 
                 init_system
 
