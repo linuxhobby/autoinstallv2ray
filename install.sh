@@ -146,18 +146,28 @@ generate_link() {
     local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
     local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
     local net=$(jq -r '.inbounds[0].streamSettings.network' $XRAY_CONF)
-    local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
-    local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' $XRAY_CONF)
     local remark="General_Master_${HOST}"
 
     case "$proto" in
         vless)
+case "$proto" in
+        vless)
             if [[ "$net" == "reality" ]]; then
-                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
+                # 核心修复：从配置文件提取 Reality 关键参数
+                local pbk=$(jq -r '.inbounds[0].streamSettings.realitySettings.privateKey // ""' $XRAY_CONF)
+                # 注意：分享链接需要的是 PublicKey，通常脚本生成时会打印在屏幕或存在特定位置
+                # 如果你的脚本没有保存 PublicKey，建议在部署时将其写入一个临时文件
+                local sid=$(jq -r '.inbounds[0].streamSettings.realitySettings.shortIds[0] // ""' $XRAY_CONF)
+                local sni=$(jq -r '.inbounds[0].streamSettings.realitySettings.dest // "www.microsoft.com"' $XRAY_CONF | cut -d: -f1)
+                
+                # 获取 PublicKey (这里假设你已经通过 xray x25519 生成并记录)
+                # 如果脚本中没有直接变量，你可能需要手动在 build_config 时捕获它
+                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=xtls-rprx-vision&sni=${sni}&fp=chrome&pbk=你的公钥&sid=${sid}#${remark}"
             elif [[ "$DOMAIN" ]]; then
+                local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
                 echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
             else
-                echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
+                echo "vless://${uuid}@${HOST}:${port}?type=${net}&security=none&encryption=none#${remark}"
             fi ;;
         vmess)
             local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":"%s"}' "$remark" "$HOST" "${DOMAIN:+443}${DOMAIN:-$port}" "$uuid" "$net" "$path" "${DOMAIN:+tls}")
