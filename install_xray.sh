@@ -22,6 +22,17 @@ is_core="xray"
 conf_dir="/etc/xray"
 config_path="/usr/local/etc/xray/config.json"
 
+# --- 版本控制中心 ---
+# 锁定 Xray 内核版本
+XRAY_VERSION="26.3.27"
+
+# 锁定 Caddy 版本 (当前稳定版 2.8.4)
+CADDY_VERSION="2.8.4"
+
+# 是否锁定版本不随系统升级 (1为开启锁定)
+FIX_VER=1
+# ------------------
+
 # --- 1. 环境准备模块 ---
 preparation_stack() {
     # 1. 设置上海时区[cite: 1]
@@ -34,10 +45,15 @@ preparation_stack() {
     systemctl enable vnstat
     systemctl start vnstat
     
-    # 3. 自动安装 Xray 内核 (如果不存在)
+    # 3. 安装并锁定指定版本的 Xray 内核
     if ! command -v $is_core &> /dev/null; then
-        echo -e "${Font_Cyan}检测到系统未安装 Xray，正在安装官方内核...${Font_Suffix}"
-        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+        echo -e "${Font_Cyan}正在安装 Xray v${XRAY_VERSION}...${Font_Suffix}"
+        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install --version ${XRAY_VERSION}
+        
+        if [ "$FIX_VER" -eq 1 ]; then
+            # 锁定内核版本，防止误操作升级[cite: 1]
+            apt-mark hold xray 2>/dev/null 
+        fi
         mkdir -p $conf_dir
     fi
 
@@ -64,10 +80,21 @@ check_domain() {
 # Caddy 自动化安装[cite: 4]
 install_caddy() {
     if ! command -v caddy &> /dev/null; then
-        echo -e "${Font_Cyan}正在安装 Caddy...${Font_Suffix}"
+        echo -e "${Font_Cyan}正在安装指定版本的 Caddy (v${CADDY_VERSION})...${Font_Suffix}"
+        
+        # 添加官方源
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-        apt-get update && apt-get install caddy -y
+        
+        apt-get update
+        # 指定版本号安装
+        # 注意：apt 安装时如果指定版本不存在会报错，此时建议先手动 apt-cache policy caddy 确认仓库版本
+        apt-get install caddy=${CADDY_VERSION} -y
+        
+        if [ "$FIX_VER" -eq 1 ]; then
+            apt-mark hold caddy
+            echo -e "${Font_Green}Caddy v${CADDY_VERSION} 已安装并锁定。${Font_Suffix}"
+        fi
     fi
 }
 
@@ -503,7 +530,7 @@ show_usage() {
 # --- 4. 主菜单分发 ---
 main_menu() {
     clear
-    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.03.52 ---${Font_Suffix}"
+    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.04.34 ---${Font_Suffix}"
     echo -e "${Font_Blue}1. 安装 VLESS-REALITY【ok】${Font_Suffix}"
     echo -e "${Font_Blue}2. 安装 VLESS-WS-TLS【ok】${Font_Suffix}"
     echo -e "${Font_Blue}3. 安装 VLESS-gRPC-TLS【ok】${Font_Suffix}"
