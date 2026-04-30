@@ -200,26 +200,42 @@ build_config() {
     local listen_ip="0.0.0.0"
     
     if [[ "$port" == "30000" ]]; then listen_ip="127.0.0.1"; fi
-    [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
-
-    # --- 关键修复：SS-2022 正确的密钥格式 ---
-    local method_setting=""
-    if [[ "$proto" == "shadowsocks" ]]; then
-        # SS-2022 使用标准的 aes-256-gcm 且必须是 32 字节 Base64 密钥
-        method_setting='"method": "2022-blake3-aes-256-gcm",'
-    fi
     
+    # 定义 streamSettings 变量
+    local stream_settings=""
+    
+    if [[ "$trans" == "reality" ]]; then
+        listen_ip="127.0.0.1"
+        stream_settings='{
+            "network": "tcp",
+            "security": "reality",
+            "realitySettings": {
+                "show": false,
+                "dest": "www.microsoft.com:443",
+                "xver": 0,
+                "serverNames": ["www.microsoft.com"],
+                "privateKey": "'${REALITY_PRV}'",
+                "shortIds": ["'${REALITY_SID}'"]
+            }
+        }'
+    else
+        stream_settings='{
+            "network": "'$trans'",
+            "security": "none",
+            "'${trans}'Settings": { "path": "'$path'", "serviceName": "'$path'" }
+        }'
+    fi
+
     cat > $XRAY_CONF <<EOF
 {
   "log": { "loglevel": "warning" },
   "inbounds": [{
     "port": $port, "listen": "$listen_ip", "protocol": "$proto",
     "settings": { 
-      $method_setting
-      "clients": [ { "id": "$secret", "password": "$secret", "flow": "$flow", "level": 0 } ], 
+      "clients": [ { "id": "$secret", "flow": "$flow", "level": 0 } ], 
       "decryption": "none" 
     },
-    "streamSettings": { "network": "$trans", "${trans}Settings": { "path": "$path", "serviceName": "$path" } }
+    "streamSettings": $stream_settings
   }],
   "outbounds": [{ "protocol": "freedom" }]
 }
@@ -259,8 +275,20 @@ deploy_menu() {
 
         UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""; PATH_STR="/ray"
         
+
         case $opt in
-            1) PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision" ;;
+            1) 
+                PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision"
+                # --- 核心修复：自动生成 REALITY 密钥对 ---
+                _blue ">>> 正在生成 REALITY 战略密钥..."
+                # 临时安装依赖以确保 xray bin 可用
+                init_system
+                local keys=$($XRAY_BIN x25519)
+                REALITY_PRV=$(echo "$keys" | grep "Private key:" | awk '{print $3}')
+                REALITY_PBK=$(echo "$keys" | grep "Public key:" | awk '{print $3}')
+                REALITY_SID=$(openssl rand -hex 4)
+                # ---------------------------------------
+                ;;
             2) 
                 PROTO="vless"; TRANS="grpc"; PORT=30000; PATH_STR="grpc-$(date +%s)"
                 printf "请输入您的解析域名: " && read DOMAIN
@@ -306,7 +334,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/30       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.18.00                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.18.05                     \033[0m\n"
 	printf -- "\033[31m   适用环境：Debian13         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
