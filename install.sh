@@ -136,12 +136,13 @@ install_vnstat() {
     read -p "按回车键返回主菜单..." temp
 }
 
-# --- 3. 分享链接生成引擎 (全量复刻自 install_xray_5.sh) ---
+# --- 3. 分享链接生成引擎 (REALITY 参数全量补全版) ---
 generate_link() {
     local IP=$(curl -4 -s ifconfig.me)
     local DOMAIN=$(grep -oE '^[^ ]+' $CADDY_FILE 2>/dev/null | head -1)
     local HOST=${DOMAIN:-$IP}
     
+    # 使用 jq 获取配置参数
     local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
     local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
     local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
@@ -150,35 +151,34 @@ generate_link() {
 
     case "$proto" in
         vless)
-case "$proto" in
-        vless)
             if [[ "$net" == "reality" ]]; then
-                # 核心修复：从配置文件提取 Reality 关键参数
-                local pbk=$(jq -r '.inbounds[0].streamSettings.realitySettings.privateKey // ""' $XRAY_CONF)
-                # 注意：分享链接需要的是 PublicKey，通常脚本生成时会打印在屏幕或存在特定位置
-                # 如果你的脚本没有保存 PublicKey，建议在部署时将其写入一个临时文件
-                local sid=$(jq -r '.inbounds[0].streamSettings.realitySettings.shortIds[0] // ""' $XRAY_CONF)
+                # 核心修复：提取 REALITY 必须参数
                 local sni=$(jq -r '.inbounds[0].streamSettings.realitySettings.dest // "www.microsoft.com"' $XRAY_CONF | cut -d: -f1)
+                local sid=$(jq -r '.inbounds[0].streamSettings.realitySettings.shortIds[0] // ""' $XRAY_CONF)
+                local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // "xtls-rprx-vision"' $XRAY_CONF)
                 
-                # 获取 PublicKey (这里假设你已经通过 xray x25519 生成并记录)
-                # 如果脚本中没有直接变量，你可能需要手动在 build_config 时捕获它
-                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=xtls-rprx-vision&sni=${sni}&fp=chrome&pbk=你的公钥&sid=${sid}#${remark}"
+                # 特别提示：PublicKey (pbk) 通常不在 config.json 中明文存储（存的是 privateKey）
+                # 这里我们尝试从之前生成的变量或环境获取，如果脚本未保存，建议在部署时手动显示
+                local pbk=${REALITY_PBK:-"请运行 /etc/xray/bin/xray x25519 获取公钥"}
+                
+                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}&sni=${sni}&fp=chrome&pbk=${pbk}&sid=${sid}#${remark}"
             elif [[ "$DOMAIN" ]]; then
                 local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
                 echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
             else
-                echo "vless://${uuid}@${HOST}:${port}?type=${net}&security=none&encryption=none#${remark}"
+                local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
+                echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
             fi ;;
         vmess)
             local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":"%s"}' "$remark" "$HOST" "${DOMAIN:+443}${DOMAIN:-$port}" "$uuid" "$net" "$path" "${DOMAIN:+tls}")
             echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
-        trojan)
-            echo "trojan://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none#${remark}" ;;
         shadowsocks)
-            echo "ss://$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)@${HOST}:${port}#${remark}" ;;
+            local password=$(jq -r '.inbounds[0].settings.password' $XRAY_CONF)
+            local method="2022-blake3-aes-256-gcm"
+            local userinfo=$(echo -n "${method}:${password}" | base64 -w 0)
+            echo "ss://${userinfo}@${HOST}:${port}#${remark}" ;;
     esac
 }
-
 # --- 4. 战报回显功能 (全量复刻自 install_xray_5.sh) ---
 show_params() {
     clear
