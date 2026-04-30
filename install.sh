@@ -304,9 +304,9 @@ while true; do
     clear
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
+    printf -- "\033[31m   作者：linuxhobby，更新：2024/04/30       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.01.16                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.18.00                     \033[0m\n"
 	printf -- "\033[31m   适用环境：Debian13         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
