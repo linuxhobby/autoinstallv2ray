@@ -1,304 +1,532 @@
 #!/bin/bash
 
 # ====================================================
-# 将军自持版 Xray_install.sh 战略部署脚本 (全量完备版)
-# 1. 补全 Xray 核心安装与 Caddy 自动化证书联动逻辑
-# 2. 完整保留源脚本的 BBR、vnstat 及所有颜色引擎源代码
-# 3. 严格锁定主菜单 1-5 战略序列，确保协议矩阵二级菜单绝对闭环
-# 4. 修复：强制 IPv4 提取逻辑，确保 macOS 客户端链接百分百可用
-# 5. https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/refs/heads/main/install_xray.sh
+# Project: Xray Moduler Refactoring
+# Protocols: VLESS-WS/gRPC/XHTTP/REALITY, Trojan-WS/gRPC
+# Author: Marco Chan
 # ====================================================
 
-# 核心版本与路径定义
-XRAY_VERSION="v24.11.30"
-CADDY_VERSION="2.11.2"
-XRAY_DIR="/etc/xray"
-XRAY_BIN="$XRAY_DIR/bin/xray"
-XRAY_CONF="/etc/xray/config.json"
-CADDY_FILE="/etc/caddy/Caddyfile"
+# 终端颜色定义
+Font_Black="\033[30m"
+Font_Red="\033[31m"
+Font_Green="\033[32m"
+Font_Yellow="\033[33m"
+Font_Blue="\033[34m"
+Font_Magenta="\033[35m"
+Font_Cyan="\033[36m"
+Font_White="\033[37m"
+Font_Suffix="\033[0m"
 
-# --- 核心颜色引擎 (全量保留 - 绝无修改) ---
-_white() { printf -- "\033[37m%s\033[0m\n" "$*"; }
-_green() { printf -- "\033[32m%s\033[0m\n" "$*"; }
-_red() { printf -- "\033[31m%s\033[0m\n" "$*"; }
-_yellow() { printf -- "\033[33m%s\033[0m\n" "$*"; }
-_blue() { printf -- "\033[34m%s\033[0m\n" "$*"; }
-_magenta() { printf -- "\033[35m%s\033[0m\n" "$*"; }
-_cyan() { printf -- "\033[36m%s\033[0m\n" "$*"; }
-_gray() { printf -- "\033[90m%s\033[0m\n" "$*"; }
-_brown() { printf -- "\033[33m%s\033[0m\n" "$*"; }
-_purple() { printf -- "\033[38;5;141m%s\033[0m\n" "$*"; }
+# 变量初始化
+is_core="xray"
+conf_dir="/etc/xray"
+config_path="/usr/local/etc/xray/config.json"
 
-# --- 0. BBR 战略加速引擎 (源代码级复刻) ---
-enable_bbr() {
-    clear
-    _yellow "========== BBR 战略状态巡视 =========="
-    if ! command -v sysctl >/dev/null 2>&1; then
-        _red "错误：系统缺少 sysctl 指令，无法调控内核参数。"
-        read -p "按回车键返回主菜单..." temp
-        return
+# --- 1. 环境准备模块 ---
+preparation_stack() {
+    # 1. 设置上海时区[cite: 1]
+    mv /etc/localtime /etc/localtime.bak
+    ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+    
+    # 2. 基础依赖与流量统计安装[cite: 2]
+    apt-get update
+    apt-get install -y wget curl socat tar unzip vnstat
+    systemctl enable vnstat
+    systemctl start vnstat
+    
+    # 3. 自动安装 Xray 内核 (如果不存在)
+    if ! command -v $is_core &> /dev/null; then
+        echo -e "${Font_Cyan}检测到系统未安装 Xray，正在安装官方内核...${Font_Suffix}"
+        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+        mkdir -p $conf_dir
     fi
-    local current_algo=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
-    if [[ "$current_algo" == "bbr" ]]; then
-        _green "检测结果：BBR 战略加速已处于开启状态。"
-        _blue "当前内核算法: $current_algo"
-        _green ">>> 报告将军：阵地带宽已在最优状态。"
-    else
-        _red "检测结果：BBR 尚未开启。"
-        _yellow ">>> 正在尝试启动 BBR 开启程序..."
-        grep -vE "net.core.default_qdisc|net.ipv4.tcp_congestion_control" /etc/sysctl.conf > /etc/sysctl.conf.bak
-        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf.bak
-        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf.bak
-        mv -f /etc/sysctl.conf.bak /etc/sysctl.conf
-        sysctl -p >/dev/null 2>&1
-        local final_algo=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
-        if [[ "$final_algo" == "bbr" ]]; then
-            _green ">>> 部署成功！BBR 战略加速已全面开启。"
-        else
-            _red ">>> 部署异常：此内核可能不支持 BBR。"
-        fi
+
+    # 4. 开启 BBR 加速[cite: 3]
+    if [[ $(lsmod | grep bbr) == "" ]]; then
+        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+        sysctl -p
     fi
-    _yellow "======================================"
-    read -p "按回车键返回主菜单..." temp
 }
 
-# --- 1. 环境初始化与核心下载 (全量复刻自 install_xray_5.sh) ---
-init_system() {
-    _green ">>> 执行战前准备：设置时区与同步核心..."
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-    apt update -y && apt install -y curl jq coreutils python3 gawk grep unzip xz-utils dnsutils gnupg debian-keyring debian-archive-keyring apt-transport-https openssl
+# 域名解析检测[cite: 5]
+check_domain() {
+    read -p "请输入您的解析域名: " domain
+    local current_ip=$(curl -s ip.sb)
+    local resolved_ip=$(ping "${domain}" -c 1 | sed '1{s/[^(]*(//;s/).*//;q}' | head -n1)
 
+    if [[ "$resolved_ip" != "$current_ip" ]]; then
+        echo -e "${Font_Red}错误: 域名解析地址 ($resolved_ip) 与本机 IP ($current_ip) 不符！${Font_Suffix}"
+        exit 1
+    fi
+}
+
+# Caddy 自动化安装[cite: 4]
+install_caddy() {
     if ! command -v caddy &> /dev/null; then
-        _blue ">>> 正在添加 Caddy 官方补给渠道..."
+        echo -e "${Font_Cyan}正在安装 Caddy...${Font_Suffix}"
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-        apt update && apt install caddy -y
-    fi
-
-    mkdir -p $XRAY_DIR/bin
-    if [ ! -f "$XRAY_BIN" ]; then
-        local arch="64"; [[ $(uname -m) == "aarch64" ]] && arch="arm64-v8a"
-        _blue ">>> 战略部署：正在下载锁定的 Xray 版本: $XRAY_VERSION"
-        curl -L -o /tmp/xray.zip "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-linux-${arch}.zip"
-        unzip -qo /tmp/xray.zip -d $XRAY_DIR/bin/ && chmod +x $XRAY_BIN
+        apt-get update && apt-get install caddy -y
     fi
 }
 
-# --- 2. 流量统计安装引擎 (全量复刻自 install_xray_5.sh) ---
-install_vnstat() {
-    if command -v vnstat &> /dev/null; then
-        _green ">>> 报告将军：vnstat 流量统计模块已在运行中，无需重复部署。"
-        printf -- "===============================================\n"
-        read -p "按回车键返回主菜单..." temp
-        return 
-    fi
-
-    _brown ">>> 正在开启 vnstat 战略流量统计部署..."
-    _blue ">>> 正在从阵地补给站获取 vnstat..."
-    apt update && apt install -y vnstat
-
-    local interface=$(ip route get 8.8.8.8 2>/dev/null | grep -Po '(?<=dev )(\S+)' | head -1)
-    if [ -z "$interface" ]; then
-        interface=$(ls /sys/class/net | grep -v lo | head -1)
-    fi
-    _blue ">>> 锁定监控网卡: $interface"
-
-    if [ -f "/etc/vnstat.conf" ]; then
-        sed -i "s/^Interface .*/Interface \"$interface\"/" /etc/vnstat.conf
-    fi
-
-    vnstat -u -i "$interface" >/dev/null 2>&1
-    systemctl enable vnstat >/dev/null 2>&1
-    systemctl restart vnstat >/dev/null 2>&1
-
-    _green ">>> 部署成功！"
-    _red "使用指令说明:"
-    _purple " - vnstat -d : 查看每日流量"
-    _purple " - vnstat -m : 查看每月流量"
-    _purple " - vnstat -i $interface : 查看每日/月流量"
-    _purple " - vnstat -l : 实时流量监控"
-    printf -- "------------------------------------\n"
-    read -p "按回车键返回主菜单..." temp
-}
-
-# --- 3. 分享链接生成引擎 (全量复刻自 install_xray_5.sh) ---
-generate_link() {
-    local IP=$(curl -4 -s ifconfig.me)
-    local DOMAIN=$(grep -oE '^[^ ]+' $CADDY_FILE 2>/dev/null | head -1)
-    local HOST=${DOMAIN:-$IP}
+# ------------------------------------------------ 2. 核心协议模块库 ------------------------------------------------
+# 1 VLESS-REALITY 协议逻辑[cite: 5]
+gen_vless_reality() {
+    echo -e "${Font_Cyan}正在配置 VLESS-REALITY...${Font_Suffix}"
+    mkdir -p $conf_dir
     
-    local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
-    local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
-    local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
-    local net=$(jq -r '.inbounds[0].streamSettings.network' $XRAY_CONF)
-    local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
-    local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' $XRAY_CONF)
-    local remark="General_Master_${HOST}"
-
-    case "$proto" in
-        vless)
-            if [[ "$net" == "reality" ]]; then
-                echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}#${remark}"
-            elif [[ "$DOMAIN" ]]; then
-                echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
-            else
-                echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
-            fi ;;
-        vmess)
-            local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":"%s"}' "$remark" "$HOST" "${DOMAIN:+443}${DOMAIN:-$port}" "$uuid" "$net" "$path" "${DOMAIN:+tls}")
-            echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
-        trojan)
-            echo "trojan://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none#${remark}" ;;
-        shadowsocks)
-            echo "ss://$(echo -n "aes-256-gcm:${uuid}" | base64 -w 0)@${HOST}:${port}#${remark}" ;;
-    esac
-}
-
-# --- 4. 战报回显功能 (全量复刻自 install_xray_5.sh) ---
-show_params() {
-    clear
-    _red "==============================================="
-    _red "   将军自持版 Xray 部署战报 (实时获取)        "
-    _red "==============================================="
-    _green "  ● 服务器 IPv4 地址: $(curl -4 -s ifconfig.me)"
-    _green "  ● 节点分享链接 (全选复制):"
-    _purple "$(generate_link)"
-    _blue "-----------------------------------------------"
-    _yellow "  提示：直接复制上方紫色链接，在客户端导入即可。"
-    _red "==============================================="
-    read -p "按回车键返回主菜单..." temp
-}
-
-# --- 5. 核心配置与服务管理 (针对 SS-2022 修复版) ---
-build_config() {
-    local proto=$1; local secret=$2; local port=$3; local trans=$4; local path=$5; local flow=$6
-    local listen_ip="0.0.0.0"
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
     
-    if [[ "$port" == "30000" ]]; then listen_ip="127.0.0.1"; fi
-    [[ "$trans" == "reality" ]] && listen_ip="127.0.0.1"
+    # 强制重新生成密钥对并确保变量不为空
+    local keys=$($is_core x25519)
+# 改进后的提取逻辑
+	local priv_key=$(echo "$keys" | grep -i "PrivateKey" | awk -F': ' '{print $2}' | tr -d ' ')
+	echo "调试：私钥为 [$priv_key]"
+	local pub_key=$(echo "$keys" | grep -i "PublicKey" | awk -F': ' '{print $2}' | tr -d ' ')
+	echo "调试：公钥为 [$pub_key]"
+    local short_id=$(openssl rand -hex 8)
+    local dest_server="www.loewe.com" 
 
-    # --- 关键注入：判断协议并设置 method ---
-    local method_setting=""
-    if [[ "$proto" == "shadowsocks" ]]; then
-        method_setting='"method": "aes-256-gcm",'
-    fi
-    
-    cat > $XRAY_CONF <<EOF
+    # 构建配置 JSON[cite: 1, 2]
+    cat <<EOF > $config_path
 {
-  "log": { "loglevel": "warning" },
-  "inbounds": [{
-    "port": $port, "listen": "$listen_ip", "protocol": "$proto",
-    "settings": { 
-      $method_setting
-      "clients": [ { "id": "$secret", "password": "$secret", "flow": "$flow", "level": 0 } ], 
-      "decryption": "none" 
-    },
-    "streamSettings": { "network": "$trans", "${trans}Settings": { "path": "$path", "serviceName": "$path" } }
-  }],
-  "outbounds": [{ "protocol": "freedom" }]
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": 443, "protocol": "vless",
+        "settings": { "clients": [{ "id": "$uuid", "flow": "xtls-rprx-vision" }], "decryption": "none" },
+        "streamSettings": { "network": "tcp", "security": "reality",
+            "realitySettings": { "show": false, "dest": "$dest_server:443", "xver": 0, "serverNames": ["$dest_server"], "privateKey": "$priv_key", "shortIds": ["$short_id"] }
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
+    systemctl restart $is_core
+    show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
-deploy_services() {
-    cat > /etc/systemd/system/xray.service <<EOF
-[Unit]
-Description=Xray Service
-After=network.target
-[Service]
-ExecStart=$XRAY_BIN run -c $XRAY_CONF
-Restart=on-failure
-[Install]
-WantedBy=multi-user.target
+# 2 VLESS-WS-TLS 协议逻辑[cite: 4, 5]
+# 2 VLESS-WS-TLS 协议逻辑完善版
+gen_vless_ws() {
+    check_domain # 检查域名解析是否指向本机[cite: 2]
+    install_caddy # 确保 Caddy 已安装[cite: 2]
+    
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local path=$(openssl rand -hex 6)
+    local port=10001
+
+    echo -e "${Font_Cyan}正在配置 VLESS-WS-TLS (Caddy 反代)...${Font_Suffix}"
+
+    # 1. 配置 Xray 核心[cite: 2]
+    cat <<EOF> $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "ws", 
+            "wsSettings": { "path": "/$path" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
 EOF
-    systemctl daemon-reload && systemctl restart xray && systemctl enable xray >/dev/null 2>&1
-}
 
-# --- 6. 协议矩阵二级菜单 (严控修改：仅修复 SS-2022 密钥) ---
-deploy_menu() {
-    while true; do
-        clear
-        printf -- "============ Xray 协议矩阵 (正式部署版) ============\n"
-        printf -- "  1) VLESS-REALITY-Vision (直连王牌)\n"
-        printf -- "  2) VLESS-gRPC-TLS (Caddy 正式联动)\n"
-        printf -- "  3) Trojan-WS/gRPC-TLS (模拟网页)\n"
-#        printf -- "  4) Shadowsocks 2022 (极简稳定)\n"
-        printf -- "  5) VMess-WS-TLS (CDN 必备)\n"
-        printf -- "-------------------------------------------------\n"
-        printf -- "  0) 返回主菜单			q) 退出程序\n"
-        printf -- "请选择编号: " && read opt
-
-        [[ "$opt" == "0" ]] && break
-        [[ "$opt" == "q" ]] && exit 0
-
-        UUID=$(cat /proc/sys/kernel/random/uuid); PORT=10086; FLOW=""; PATH_STR="/ray"
-        
-        case $opt in
-            1) PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision" ;;
-            2) 
-                PROTO="vless"; TRANS="grpc"; PORT=30000; PATH_STR="grpc-$(date +%s)"
-                printf "请输入您的解析域名: " && read DOMAIN
-                if [[ -z "$DOMAIN" ]]; then _red "域名不能为空"; sleep 2; continue; fi
-                cat > $CADDY_FILE <<EOF
-$DOMAIN {
-    tls { protocols tls1.2 tls1.3 }
-    reverse_proxy /$PATH_STR/* {
-        transport http { versions h2c }
-        to localhost:30000
+# 修正后的 Caddy 配置：确保反代路径精确且支持 h2c[cite: 2, 3]
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
     }
-    reverse_proxy https://www.bing.com {
-        header_up Host {upstream_hostport}
+    # 注意：反代 localhost 时不要带协议头，直接写端口
+    reverse_proxy /$path 127.0.0.1:$port {
+        transport http {
+            versions h2c
+        }
     }
-}
-EOF
-                systemctl restart caddy && systemctl enable caddy
-                ;;
-            3) PROTO="trojan"; TRANS="ws" ;;
-#            4) 
-#                PROTO="shadowsocks"; TRANS="tcp"
-#                # 【唯一必要修改】：SS-2022 强制要求 32 字节 Base64 密钥以解决 PublicKey 报错
-#               UUID=$(openssl rand -base64 32)
-#              ;;
-            5) PROTO="vmess"; TRANS="ws" ;;
-            *) _red "非法指令"; continue ;;
-        esac
-        
-        init_system
-        build_config "$PROTO" "$UUID" "$PORT" "$TRANS" "$PATH_STR" "$FLOW"
-        deploy_services
-        _green ">>> 报告将军：阵地部署成功！"
-        show_params
-        exit 0
-    done
+}" > /etc/caddy/Caddyfile
+
+    # 3. 重启服务使配置生效[cite: 2]
+    systemctl restart caddy
+    systemctl restart $is_core
+    
+    # 4. 展示安装信息[cite: 2]
+    show_ws_info "$uuid" "$domain" "$path"
 }
 
-# --- 核心主循环控制台 (绝对基准复刻) ---
-while true; do
+# 2 vless_grpc 协议配置
+# 3 VLESS-gRPC-TLS 协议逻辑完善版
+gen_vless_grpc() {
+    check_domain # 检查域名解析
+    install_caddy # 确保 Caddy 已安装
+    
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local serviceName=$(openssl rand -hex 4)
+    local port=10002
+
+    echo -e "${Font_Cyan}正在配置 VLESS-gRPC-TLS...${Font_Suffix}"
+
+    # 1. 配置 Xray 核心 (gRPC 传输层)[cite: 2]
+    cat <<EOF > $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "grpc", 
+            "grpcSettings": { "serviceName": "$serviceName" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    # 2. 配置 Caddyfile (启用 h2c 对接 gRPC)[cite: 2]
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    # gRPC 必须使用 h2c 传输[cite: 2]
+    reverse_proxy localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}" > /etc/caddy/Caddyfile
+
+    # 3. 重启服务[cite: 2]
+    systemctl restart caddy
+    systemctl restart $is_core
+    
+    # 4. 展示安装信息
+    show_grpc_info "$uuid" "$domain" "$serviceName"
+}
+
+# 4 VLESS-XHTTP-TLS 协议逻辑 - 最终兼容版
+gen_vless_xhttp() {
+    check_domain
+    install_caddy
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local path=$(openssl rand -hex 6)
+    local port=10003
+
+    echo -e "${Font_Cyan}正在应用 VLESS-XHTTP-TLS 最终兼容性修复...${Font_Suffix}"
+
+    # 1. 核心配置：明确指定路径
+    cat <<EOF > $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "xhttp", 
+            "xhttpSettings": { 
+                "path": "/$path"
+            } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    # 2. Caddy 配置：移除 transport 限制，改用更通用的反代写法
+    # 有时显式写 127.0.0.1 比 localhost 更能避免 IPv6 导致的握手延迟
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy 127.0.0.1:$port
+}" > /etc/caddy/Caddyfile
+
+    systemctl restart caddy
+    systemctl restart $is_core
+    
+    show_xhttp_info "$uuid" "$domain" "$path"
+}
+
+# 5 Trojan-WS-TLS 协议逻辑优化版
+gen_trojan_ws() {
+    check_domain
+    install_caddy
+    
+    # 密码处理：如果用户不输入则随机生成
+    read -p "请输入 Trojan 密码 (默认随机): " pass
+    [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
+    
+    local path=$(openssl rand -hex 6)
+    local port=10004
+
+    echo -e "${Font_Cyan}正在配置 Trojan-WS-TLS (Caddy 反代)...${Font_Suffix}"
+
+    # 1. 配置 Xray 核心 (Trojan 协议层)
+    cat <<EOF > $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "trojan",
+        "settings": { 
+            "clients": [{ "password": "$pass" }] 
+        },
+        "streamSettings": { 
+            "network": "ws", 
+            "wsSettings": { "path": "/$path" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    # 2. 自动化配置 Caddyfile (包含 TLS 证书自动申请)
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy /$path localhost:$port
+}" > /etc/caddy/Caddyfile
+
+    # 3. 重启服务
+    systemctl restart caddy
+    systemctl restart $is_core
+    
+    # 4. 展示安装信息
+    show_trojan_info "ws" "$pass" "$domain" "$path"
+}
+
+# 6 Trojan-gRPC-TLS 协议逻辑优化版
+gen_trojan_grpc() {
+    check_domain
+    install_caddy
+    
+    read -p "请输入 Trojan 密码 (默认随机): " pass
+    [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
+    
+    local serviceName=$(openssl rand -hex 4)
+    local port=10005
+
+    echo -e "${Font_Cyan}正在配置 Trojan-gRPC-TLS (Caddy 反代)...${Font_Suffix}"
+
+    # 1. 配置 Xray 核心 (Trojan + gRPC)
+    cat <<EOF > $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "trojan",
+        "settings": { 
+            "clients": [{ "password": "$pass" }] 
+        },
+        "streamSettings": { 
+            "network": "grpc", 
+            "grpcSettings": { "serviceName": "$serviceName" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    # 2. 配置 Caddyfile (关键：使用 h2c 转发 gRPC 流量)
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}" > /etc/caddy/Caddyfile
+
+    # 3. 重启服务
+    systemctl restart caddy
+    systemctl restart $is_core
+    
+    # 4. 展示安装信息
+    show_trojan_info "grpc" "$pass" "$domain" "$serviceName"
+}
+
+# --- 3. 信息展示与统计模块 ---
+show_reality_info() {
+    local uuid=$1
+    local pub_key=$2
+    local short_id=$3
+    local sni=$4
+    
+    # 强制获取 IPv4 地址[cite: 2]
+    local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
+    
+    # 备注命名规范[cite: 1, 2]
+    local ps_name="REALITY_${sni}_$(date +%Y%m%d)"
+    
+    # 拼接完整链接，修复 pbk 为空的缺陷[cite: 2]
+    local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
+
+    echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
+    echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
+    echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接 (请确保完整复制):${Font_Suffix}"
+    echo -e "$link"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+}
+
+show_ws_info() {
+    local uuid=$1
+    local domain=$2
+    local path=$3
+    
+    # 备注命名规范：域名_日期[cite: 1, 2]
+    local ps_name="${domain}_$(date +%Y%m%d)"
+    
+    # 构建 VLESS-WS-TLS 分享链接[cite: 2]
+    # 使用 %2F 对路径中的 / 进行转义
+    local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=ws&host=$domain&path=%2F$path#$ps_name"
+
+    echo -e "${Font_Green}VLESS-WS-TLS 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
+    echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
+    echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
+    echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "$link"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+}
+
+show_grpc_info() {
+    local uuid=$1
+    local domain=$2
+    local serviceName=$3
+    
+    # 备注命名规范[cite: 1, 2]
+    local ps_name="${domain}_$(date +%Y%m%d)"
+    
+    # 构建 VLESS-gRPC-TLS 分享链接[cite: 2]
+    local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=grpc&serviceName=$serviceName&sni=$domain#$ps_name"
+
+    echo -e "${Font_Green}VLESS-gRPC-TLS 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
+    echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
+    echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $serviceName"
+    echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "$link"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+}
+
+show_xhttp_info() {
+    local uuid=$1
+    local domain=$2
+    local path=$3
+    local ps_name="${domain}_$(date +%Y%m%d)"
+    
+    # 关键：path 需转义，且必须携带 sni
+    local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=xhttp&path=%2F$path&sni=$domain#$ps_name"
+
+    echo -e "${Font_Green}VLESS-XHTTP-TLS 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
+    echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
+    echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
+    echo -e "${Font_Cyan}模式:${Font_Suffix} auto (建议客户端手动选 auto)${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "$link"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+}
+
+show_trojan_info() {
+    local type=$1
+    local pass=$2
+    local host=$3
+    local param=$4
+    # 遵循 User Summary 中的命名规范：域名_日期[cite: 1, 2]
+    local ps_name="${host}_$(date +%Y%m%d)"
+    
+    if [[ "$type" == "ws" ]]; then
+        # 针对 WS 路径进行 %2F 转义
+        local link="trojan://$pass@$host:443?security=tls&type=ws&sni=$host&path=%2F$param#$ps_name"
+    else
+        local link="trojan://$pass@$host:443?security=tls&type=grpc&sni=$host&serviceName=$param#$ps_name"
+    fi
+
+    echo -e "${Font_Green}Trojan-$type 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Cyan}密码:${Font_Suffix} $pass"
+    echo -e "${Font_Cyan}域名:${Font_Suffix} $host"
+    echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
+    if [[ "$type" == "ws" ]]; then
+        echo -e "${Font_Cyan}路径:${Font_Suffix} /$param"
+    else
+        echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $param"
+    fi
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "$link"
+    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+}
+
+# 流量统计工具[cite: 2]
+show_usage() {
+    echo -e "${Font_Magenta}--- 流量统计看板 ---${Font_Suffix}"
+    vnstat -d && vnstat -m
+    read -p "按回车键返回主菜单"
+}
+
+# --- 4. 主菜单分发 ---
+# --- 4. 主菜单分发 ---
+
+main_menu() {
     clear
-    OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
-    printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "\033[31m   作者：linuxhobby，更新：2024/04/29       \033[0m\n"
-    printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.01.16                     \033[0m\n"
-	printf -- "\033[31m   适用环境：Debian13         \033[0m\n"
-    printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
-    printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "  1) 新增/更换配置 (支持 Caddy 自动证书)\n"
-    printf -- "  2) 查看现有配置 (显示分享链接)\n"
-    printf -- "  3) 删除所有配置 (撤除部署)\n"
-    printf -- "  4) 开启 BBR 战略加速\n"
-    printf -- "  5) 安装 vnstat 流量统计\n"
-    printf -- "  q) 撤退\n"
-    printf -- "\033[31m===============================================\033[0m\n"
-    printf -- "\033[31m请选择主指令: \033[0m" && read main_opt
+    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.03.52 ---${Font_Suffix}"
+    echo -e "${Font_Blue}1. 安装 VLESS-REALITY【ok】${Font_Suffix}"
+    echo -e "${Font_Blue}2. 安装 VLESS-WS-TLS【ok】${Font_Suffix}"
+    echo -e "${Font_Blue}3. 安装 VLESS-gRPC-TLS【ok】${Font_Suffix}"
+    echo -e "${Font_Blue}4. 安装 VLESS-XHTTP-TLS【no】${Font_Suffix}"
+    echo -e "${Font_Blue}5. 安装 Trojan-WS-TLS【ok】${Font_Suffix}"
+    echo -e "${Font_Blue}6. 安装 Trojan-gRPC-TLS【ok】${Font_Suffix}"
+    echo -e "${Font_Cyan}t. 查看流量统计 (vnstat)${Font_Suffix}"
+    echo -e "${Font_Red}7. 卸载与清理${Font_Suffix}"
+    read -p "请选择: " num
 
-    case $main_opt in
-        1) deploy_menu ;;
-        2) [[ -f "$XRAY_CONF" ]] && show_params || { _red "目前未发现任何部署内容。"; sleep 2; } ;;
-        3) systemctl stop xray caddy 2>/dev/null; rm -rf $XRAY_DIR; _red ">>> 阵地已清理。"; sleep 2 ;;
-        4) enable_bbr ;;
-        5) install_vnstat ;;
-        q) exit 0 ;;
-        *) _red "非法指令"; sleep 1 ;;
+    case "$num" in
+        1) preparation_stack; gen_vless_reality ;;
+        2) preparation_stack; gen_vless_ws ;;
+        3) preparation_stack; gen_vless_grpc ;;
+        4) preparation_stack; gen_vless_xhttp ;;
+        5) preparation_stack; gen_trojan_ws ;;
+        6) preparation_stack; gen_trojan_grpc ;;
+        t) show_usage; main_menu ;;
+        7) systemctl stop xray caddy; apt-get remove --purge -y vnstat caddy; echo "清理完成";;
+        *) exit 1 ;;
     esac
-done
+}
+
+# 脚本最后一行必须调用函数
+main_menu
