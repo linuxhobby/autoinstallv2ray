@@ -501,18 +501,18 @@ show_usage() {
 
 # --- 4. 主菜单分发 ---
 # --- 4. 主菜单分发 ---
-
 main_menu() {
     clear
     echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.03.52 ---${Font_Suffix}"
     echo -e "${Font_Blue}1. 安装 VLESS-REALITY【ok】${Font_Suffix}"
     echo -e "${Font_Blue}2. 安装 VLESS-WS-TLS【ok】${Font_Suffix}"
     echo -e "${Font_Blue}3. 安装 VLESS-gRPC-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}4. 安装 VLESS-XHTTP-TLS【no】${Font_Suffix}"
+    echo -e "${Font_Blue}4. 安装 VLESS-XHTTP-TLS【ok】${Font_Suffix}"
     echo -e "${Font_Blue}5. 安装 Trojan-WS-TLS【ok】${Font_Suffix}"
     echo -e "${Font_Blue}6. 安装 Trojan-gRPC-TLS【ok】${Font_Suffix}"
     echo -e "${Font_Cyan}t. 查看流量统计 (vnstat)${Font_Suffix}"
     echo -e "${Font_Red}7. 卸载与清理${Font_Suffix}"
+    echo -e "${Font_Yellow}q. 退出脚本${Font_Suffix}"  # 添加退出选项显示
     read -p "请选择: " num
 
     case "$num" in
@@ -524,9 +524,14 @@ main_menu() {
         6) preparation_stack; gen_trojan_grpc ;;
         t) show_usage; main_menu ;;
         7) systemctl stop xray caddy; apt-get remove --purge -y vnstat caddy; echo "清理完成";;
-        *) exit 1 ;;
+        q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;; # 添加退出逻辑
+        *) echo -e "${Font_Red}无效输入，请输入正确选项。${Font_Suffix}"; sleep 1; main_menu ;; # 优化无效输入处理
     esac
 }
 
-# 脚本最后一行必须调用函数
-main_menu
+# ... 前面是所有的函数定义 ...
+
+# 脚本入口
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main_menu
+fi
