@@ -21,10 +21,6 @@
 apt update
 apt install wget -y
 ```
-安装xray，请执行：
-```
-wget -O install_xray.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install_xray.sh && chmod +x install_xray.sh && ./install_xray.sh
-```
 安装v2ray，请执行：
 ```
 wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install_v2ray.sh && chmod +x install_v2ray.sh && ./install_v2ray.sh
