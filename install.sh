@@ -135,43 +135,37 @@ install_vnstat() {
     printf -- "------------------------------------\n"
     read -p "按回车键返回主菜单..." temp
 }
-
-# --- 3. 分享链接生成引擎 (REALITY 参数全量补全版) ---
+# --- 3. 生成分享链接 ---
 generate_link() {
     local IP=$(curl -4 -s ifconfig.me)
     local DOMAIN=$(grep -oE '^[^ ]+' $CADDY_FILE 2>/dev/null | head -1)
     local HOST=${DOMAIN:-$IP}
     
-    # 使用 jq 获取配置参数
+    # 使用 jq 动态提取配置，确保“选项2”查看时也能获取数据
     local proto=$(jq -r '.inbounds[0].protocol' $XRAY_CONF)
     local uuid=$(jq -r '.inbounds[0].settings.clients[0].id // .inbounds[0].settings.clients[0].password' $XRAY_CONF)
     local port=$(jq -r '.inbounds[0].port' $XRAY_CONF)
     local net=$(jq -r '.inbounds[0].streamSettings.network' $XRAY_CONF)
+    local security=$(jq -r '.inbounds[0].streamSettings.security // "none"' $XRAY_CONF)
     local remark="General_Master_${HOST}"
 
     case "$proto" in
         vless)
-            if [[ "$net" == "reality" ]]; then
-                # 核心修复：提取 REALITY 必须参数
-                local sni=$(jq -r '.inbounds[0].streamSettings.realitySettings.dest // "www.microsoft.com"' $XRAY_CONF | cut -d: -f1)
+            if [[ "$security" == "reality" ]]; then
+                # 核心修复：从 config.json 提取 REALITY 必须参数
+                local sni=$(jq -r '.inbounds[0].streamSettings.realitySettings.serverNames[0] // "www.microsoft.com"' $XRAY_CONF)
                 local sid=$(jq -r '.inbounds[0].streamSettings.realitySettings.shortIds[0] // ""' $XRAY_CONF)
                 local flow=$(jq -r '.inbounds[0].settings.clients[0].flow // "xtls-rprx-vision"' $XRAY_CONF)
                 
-                # 特别提示：PublicKey (pbk) 通常不在 config.json 中明文存储（存的是 privateKey）
-                # 这里我们尝试从之前生成的变量或环境获取，如果脚本未保存，建议在部署时手动显示
-                local pbk=${REALITY_PBK:-"请运行 /etc/xray/bin/xray x25519 获取公钥"}
+                # 特别注意：REALITY 的 pbk 不在配置文件里，需要读取部署时产生的临时备份或提示
+                # 建议在 build_config 时将 pbk 存入 /etc/xray/pbk.txt
+                local pbk=$(cat $XRAY_DIR/pbk.txt 2>/dev/null || echo "$REALITY_PBK")
                 
+                # 拼接适配 v2rayN 的标准格式
                 echo "vless://${uuid}@${HOST}:${port}?security=reality&encryption=none&flow=${flow}&sni=${sni}&fp=chrome&pbk=${pbk}&sid=${sid}#${remark}"
-            elif [[ "$DOMAIN" ]]; then
-                local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
-                echo "vless://${uuid}@${HOST}:443?type=${net}&path=${path}&security=tls&encryption=none&serviceName=${path}#${remark}"
             else
-                local path=$(jq -r '.inbounds[0].streamSettings.'${net}'Settings.path // .inbounds[0].streamSettings.'${net}'Settings.serviceName' $XRAY_CONF)
-                echo "vless://${uuid}@${HOST}:${port}?type=${net}&path=${path}&security=none&encryption=none#${remark}"
+                echo "vless://${uuid}@${HOST}:${port}?security=tls&encryption=none#${remark}"
             fi ;;
-        vmess)
-            local v_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"none","host":"","path":"%s","tls":"%s"}' "$remark" "$HOST" "${DOMAIN:+443}${DOMAIN:-$port}" "$uuid" "$net" "$path" "${DOMAIN:+tls}")
-            echo "vmess://$(echo -n "$v_json" | base64 -w 0)" ;;
         shadowsocks)
             local password=$(jq -r '.inbounds[0].settings.password' $XRAY_CONF)
             local method="2022-blake3-aes-256-gcm"
@@ -226,6 +220,9 @@ build_config() {
         }'
     fi
 
+# 在 build_config 函数内，cat 指令之前加入：
+echo "$REALITY_PBK" > $XRAY_DIR/pbk.txt
+
     cat > $XRAY_CONF <<EOF
 {
   "log": { "loglevel": "warning" },
@@ -279,15 +276,13 @@ deploy_menu() {
         case $opt in
             1) 
                 PROTO="vless"; TRANS="reality"; FLOW="xtls-rprx-vision"
-                # --- 核心修复：自动生成 REALITY 密钥对 ---
-                _blue ">>> 正在生成 REALITY 战略密钥..."
-                # 临时安装依赖以确保 xray bin 可用
-                init_system
-                local keys=$($XRAY_BIN x25519)
+                init_system # 确保 xray 二进制文件已下载
+                _blue ">>> 正在生成 REALITY 战略密钥对..."
+                # 使用您自定义的路径执行
+                keys=$($XRAY_BIN x25519)
                 REALITY_PRV=$(echo "$keys" | grep "Private key:" | awk '{print $3}')
                 REALITY_PBK=$(echo "$keys" | grep "Public key:" | awk '{print $3}')
                 REALITY_SID=$(openssl rand -hex 4)
-                # ---------------------------------------
                 ;;
             2) 
                 PROTO="vless"; TRANS="grpc"; PORT=30000; PATH_STR="grpc-$(date +%s)"
@@ -334,7 +329,7 @@ while true; do
     printf -- "\033[31m===============================================\033[0m\n"
     printf -- "\033[31m   作者：linuxhobby，更新：2024/04/30       \033[0m\n"
     printf -- "\033[31m   名称：xray_install 战略管理终端 (Caddy联动版) \033[0m\n"
-    printf -- "\033[31m   特征码：v1.04.30.18.05                     \033[0m\n"
+    printf -- "\033[31m   特征码：v1.04.30.18.22                     \033[0m\n"
 	printf -- "\033[31m   适用环境：Debian13         \033[0m\n"
     printf -- "\033[31m   当前环境：$OS_NAME \033[0m\n"
     printf -- "\033[31m===============================================\033[0m\n"
