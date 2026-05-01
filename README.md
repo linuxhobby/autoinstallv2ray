@@ -5,8 +5,6 @@
 建议使用debian12/13系统，或Ubuntu25/26。  
 目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。  
 脚本界面展示：  
-<img width="502" height="434" alt="image" src="https://github.com/user-attachments/assets/5bf2c390-9457-4691-a6e4-0886c77e4b46" />
-
 <img width="467" height="431" alt="image" src="https://github.com/user-attachments/assets/34f14b67-b6b8-4ecc-b5ea-bdfc894e0ff0" />
 
 ## 安装之前......您需要
