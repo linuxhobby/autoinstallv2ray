@@ -23,14 +23,15 @@
 apt update
 apt install wget -y
 ```
+**推荐** 安装xray内核，请执行下面代码，本版本相关内核版本：xray：v26.3.27，caddy：v2.8.4
+```
+wget -O install_xray.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install_xray.sh && chmod +x install_xray.sh && ./install_xray.sh
+```
 安装v2ra内核，请执行：
 ```
 wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install_v2ray.sh && chmod +x install_v2ray.sh && ./install_v2ray.sh
 ```
-安装xray内核，请执行下面代码，本版本相关内核版本：xray：v26.3.27，caddy：v2.8.4
-```
-wget -O install_xray.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install_xray.sh && chmod +x install_xray.sh && ./install_xray.sh
-```
+
 ---
 ## 1. 脚本总结
 本脚本为个人兴趣所作，非商业化、非营利性的业余之作“**快速部署脚本**”。
