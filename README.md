@@ -6,7 +6,8 @@
 建议使用debian12/13系统，或Ubuntu25/26。  
 目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。  
 脚本界面：  
-<img width="521" height="433" alt="image" src="https://github.com/user-attachments/assets/ba216600-9617-43e3-b74d-6f6ef86c4348" />
+<img width="593" height="541" alt="image" src="https://github.com/user-attachments/assets/23efd878-7093-4367-9995-8310e8ddb8e0" />
+
 
 目前支持的协议：  
 <img width="585" height="379" alt="image" src="https://github.com/user-attachments/assets/6c6f1351-1911-4fc4-a07c-038778e075f2" />
