@@ -1,9 +1,15 @@
 #!/bin/bash
 
 # ====================================================
-# Project: Xray Moduler Refactoring
-# Protocols: VLESS-WS/gRPC/XHTTP/REALITY, Trojan-WS/gRPC
-# Author: linuxhobby
+# 作者: linuxhobby
+# 更新：2024/05/01
+# 支持以下协议矩阵安装
+#  【1】 . 安装 VLESS-REALITY-Vision
+#  【2】 . 安装 VLESS-WS-TLS
+#  【3】 . 安装 VLESS-gRPC-TLS
+#  【4】 . 安装 VLESS-XHTTP-TLS
+#  【5】 . 安装 Trojan-WS-TLS
+#  【6】 . 安装 Trojan-gRPC-TLS
 # 修改功能：1、域名检测。2、信息查询功能。3、优化菜单
 # ====================================================
 
