@@ -7,15 +7,15 @@
 # ====================================================
 
 # 终端颜色定义
-Font_Black="\033[30m"
-Font_Red="\033[31m"
-Font_Green="\033[32m"
-Font_Yellow="\033[33m"
-Font_Blue="\033[34m"
-Font_Magenta="\033[35m"
-Font_Cyan="\033[36m"
-Font_White="\033[37m"
-Font_Suffix="\033[0m"
+Font_Black="\033[30m"   # 黑色
+Font_Red="\033[31m"     # 红色
+Font_Green="\033[32m"   # 绿色
+Font_Yellow="\033[33m"  # 黄色
+Font_Blue="\033[34m"    # 蓝色
+Font_Magenta="\033[35m" # 洋红色/紫色
+Font_Cyan="\033[36m"    # 青色
+Font_White="\033[37m"   # 白色
+Font_Suffix="\033[0m"   # 重置颜色/颜色结尾
 
 # 变量初始化
 is_core="xray"
@@ -597,19 +597,26 @@ show_usage() {
 # --- 4. 主菜单分发 ---
 main_menu() {
     clear
-    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.12.12 ---${Font_Suffix}"
-    echo -e "${Font_Blue} 【1】 . 安装 VLESS-REALITY${Font_Suffix}"
-    echo -e "${Font_Blue} 【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
-    echo -e "${Font_Blue} 【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
-    echo -e "${Font_Blue} 【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
-    echo -e "${Font_Blue} 【5】 . 安装 Trojan-WS-TLS${Font_Suffix}"
-    echo -e "${Font_Blue} 【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}"
-    echo -e "----------------------------------------"
-    echo -e "${Font_Green} 【v】 . 查看当前协议信息与链接${Font_Suffix}" 
-    echo -e "${Font_Cyan} 【t】 . 查看流量统计 (vnstat)${Font_Suffix}"
-    echo -e "${Font_Red} 【7】 . 卸载与清理${Font_Suffix}"
-    echo -e "${Font_Yellow} 【q】 . 退出脚本${Font_Suffix}" 
-    echo -e "----------------------------------------"
+    OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
+    echo -e "${Font_Red}===========================================${Font_Suffix}"
+    echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/01   ${Font_Suffix}"
+    echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.05.01.12.24    ${Font_Suffix}"
+    echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
+    echo -e "${Font_Red}   当前系统：$OS_NAME    ${Font_Suffix}"
+    echo -e "-------------------------------------------"
+    echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}"
+    echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
+    echo -e "${Font_Blue}  【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
+    echo -e "${Font_Blue}  【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
+    echo -e "${Font_Blue}  【5】 . 安装 Trojan-WS-TLS${Font_Suffix}"
+    echo -e "${Font_Blue}  【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}"
+    echo -e "-------------------------------------------"
+    echo -e "${Font_Magenta}  【v】 . 查看当前协议信息与链接${Font_Suffix}" 
+    echo -e "${Font_Magenta}  【t】 . 查看流量统计 (vnstat)${Font_Suffix}"
+    echo -e "${Font_Red}  【d】 . 卸载与清理${Font_Suffix}"
+    echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
+    echo -e "-------------------------------------------"
     read -p "请选择: " num
 
     case "$num" in
@@ -619,9 +626,7 @@ main_menu() {
         4) preparation_stack; gen_vless_xhttp; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
         5) preparation_stack; gen_trojan_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
         6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        v) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
-        t) show_usage; main_menu ;;
-        7) 
+        d) 
             read -p "确定要卸载吗？(y/n): " confirm
             if [[ "$confirm" == "y" ]]; then
                 apt-mark unhold xray caddy 2>/dev/null[cite: 1]
@@ -633,6 +638,8 @@ main_menu() {
             fi
             main_menu ;;
         q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;;
+        v) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
+        t) show_usage; main_menu ;;
         *) echo -e "${Font_Red}无效输入，请输入正确选项。${Font_Suffix}"; sleep 1; main_menu ;;
     esac
 }
