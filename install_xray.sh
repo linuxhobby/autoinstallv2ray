@@ -3,7 +3,7 @@
 # ====================================================
 # Project: Xray Moduler Refactoring
 # Protocols: VLESS-WS/gRPC/XHTTP/REALITY, Trojan-WS/gRPC
-# Author: Marco Chan
+# Author: linuxhobby
 # ====================================================
 
 # 终端颜色定义
@@ -19,8 +19,18 @@ Font_Suffix="\033[0m"
 
 # 变量初始化
 is_core="xray"
-conf_dir="/etc/xray"
-config_path="/usr/local/etc/xray/config.json"
+#conf_dir="/etc/xray"
+#config_path="/usr/local/etc/xray/config.json"
+conf_dir="/usr/local/etc/xray"
+config_path="${conf_dir}/config.json"
+
+# --- 版本控制中心 ---
+# 锁定 Xray 内核版本
+XRAY_VERSION="26.3.27"
+# 锁定 Caddy 版本
+CADDY_VERSION="2.8.4"
+# 是否锁定版本不随系统升级 (1为开启锁定)
+FIX_VER=1
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
@@ -35,11 +45,22 @@ preparation_stack() {
     systemctl start vnstat
     
     # 3. 自动安装 Xray 内核 (如果不存在)
-    if ! command -v $is_core &> /dev/null; then
-        echo -e "${Font_Cyan}检测到系统未安装 Xray，正在安装官方内核...${Font_Suffix}"
-        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-        mkdir -p $conf_dir
+install_caddy() {
+    if ! command -v caddy &> /dev/null; then
+        echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt-get update
+        
+        # 修改点：指定版本安装[cite: 1]
+        apt-get install caddy=${CADDY_VERSION} -y
+        
+        # 修改点：执行版本锁定[cite: 1]
+        if [ "$FIX_VER" -eq 1 ]; then
+            apt-mark hold caddy
+        fi
     fi
+}
 
     # 4. 开启 BBR 加速[cite: 3]
     if [[ $(lsmod | grep bbr) == "" ]]; then
@@ -49,28 +70,102 @@ preparation_stack() {
     fi
 }
 
-# 域名解析检测[cite: 5]
+# --- 2. 域名解析检测优化版：增加循环重试机制 ---
 check_domain() {
-    read -p "请输入您的解析域名: " domain
-    local current_ip=$(curl -s ip.sb)
-    local resolved_ip=$(ping "${domain}" -c 1 | sed '1{s/[^(]*(//;s/).*//;q}' | head -n1)
+    while true; do
+        read -p "请输入您的解析域名: " domain
+        if [[ -z "$domain" ]]; then continue; fi
 
-    if [[ "$resolved_ip" != "$current_ip" ]]; then
-        echo -e "${Font_Red}错误: 域名解析地址 ($resolved_ip) 与本机 IP ($current_ip) 不符！${Font_Suffix}"
-        exit 1
-    fi
+        # 分别获取本机的 IPv4 和 IPv6
+        local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "无")
+        local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "无")
+        
+        # 获取域名的解析结果（包括 A 记录和 AAAA 记录）
+        # 优化后的解析提取，只保留纯 IP 地址
+        local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
+        #local resolved_ips=$(host "$domain" | grep "address" | awk '{print $4}')
+        
+        echo -e "${Font_Cyan}本机 IPv4: $local_ipv4 | IPv6: $local_ipv6${Font_Suffix}"
+        echo -e "${Font_Cyan}域名解析地址:${Font_Suffix}\n$resolved_ips"
+
+        # 检查逻辑：只要域名解析出的 IP 列表中包含本机的任何一个 IP 即可通过
+        local pass=0
+        for rip in $resolved_ips; do
+            if [[ "$rip" == "$local_ipv4" ]] || [[ "$rip" == "$local_ipv6" ]]; then
+                pass=1
+                break
+            fi
+        done
+
+        if [[ $pass -eq 1 ]]; then
+            echo -e "${Font_Green}检测通过：域名已正确解析到本机 IP。${Font_Suffix}"
+            break
+        else
+            echo -e "${Font_Red}错误: 域名解析地址与本机 IP 不符！${Font_Suffix}"
+            echo -e "${Font_Yellow}1. 重新输入 | 2. 强制跳过${Font_Suffix}"
+            read -p "请选择: " retry_choice
+            [[ "$retry_choice" == "2" ]] && break
+        fi
+    done
 }
 
-# Caddy 自动化安装[cite: 4]
-install_caddy() {
-    if ! command -v caddy &> /dev/null; then
-        echo -e "${Font_Cyan}正在安装 Caddy...${Font_Suffix}"
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-        apt-get update && apt-get install caddy -y
+# --- 3. 查看当前安装的协议及详细信息 ---
+# --- 3. 查看当前安装的协议及详细信息 ---
+check_current_protocol() {
+    if [[ ! -f $config_path ]]; then
+        echo -e "${Font_Red}错误: 未检测到配置文件 ($config_path)，请先安装协议。${Font_Suffix}"
+        read -p "按回车键返回主菜单"
+        return
     fi
-}
 
+    echo -e "${Font_Magenta}--- 当前协议详细信息 ---${Font_Suffix}"
+    
+    # 1. 变量提取逻辑优化：使用 grep -oP 确保只抓取引号内的内容
+    local uuid=$(grep -m1 '"id":' $config_path | grep -oP '(?<="id": ")[^"]+' || grep -m1 '"password":' $config_path | grep -oP '(?<="password": ")[^"]+')
+    local network=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
+    
+    # 获取 IP 和 域名
+    local ip=$(curl -4 -s --connect-timeout 5 ip.sb || curl -s http://ipv4.icanhazip.com)
+    # 优先从 Caddyfile 提取域名
+    local domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ')
+    [[ -z "$domain" ]] && domain=$(grep -oP '(?<="serverNames": \[")[^"]+' $config_path | head -n1)
+    [[ -z "$domain" ]] && domain=$ip
+
+    # 2. 识别协议类型并分发显示
+    if grep -q "realitySettings" $config_path; then
+        local pub_key=$(cat ${conf_dir}/pub.key 2>/dev/null || echo "未找到公钥文件")
+        local short_id=$(grep -m1 '"shortIds":' $config_path | grep -oP '(?<="shortIds": \[").*(?="])' | cut -d'"' -f1)
+        local sni=$(grep -m1 '"serverNames":' $config_path | grep -oP '(?<="serverNames": \[").*(?="])' | cut -d'"' -f1)
+        show_reality_info "$uuid" "$pub_key" "$short_id" "$sni"
+    
+    elif [[ "$network" == "ws" ]]; then
+        # 修复 path 提取，去掉 /
+        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
+        if grep -q '"protocol": "trojan"' $config_path; then
+            show_trojan_info "ws" "$uuid" "$domain" "$path"
+        else
+            show_ws_info "$uuid" "$domain" "$path"
+        fi
+
+    elif [[ "$network" == "grpc" ]]; then
+        local serviceName=$(grep -m1 '"serviceName":' $config_path | grep -oP '(?<="serviceName": ")[^"]+')
+        if grep -q '"protocol": "trojan"' $config_path; then
+            show_trojan_info "grpc" "$uuid" "$domain" "$serviceName"
+        else
+            show_grpc_info "$uuid" "$domain" "$serviceName"
+        fi
+
+    elif [[ "$network" == "xhttp" ]]; then
+        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
+        show_xhttp_info "$uuid" "$domain" "$path"
+
+    else
+        echo -e "${Font_Red}未能识别协议类型。${Font_Suffix}"
+    fi
+    
+    echo -e "${Font_Yellow}----------------------------------------${Font_Suffix}"
+    read -p "按回车键返回主菜单"
+}
 # ------------------------------------------------ 2. 核心协议模块库 ------------------------------------------------
 # 1 VLESS-REALITY 协议逻辑[cite: 5]
 gen_vless_reality() {
@@ -88,7 +183,9 @@ gen_vless_reality() {
 	echo "调试：公钥为 [$pub_key]"
     local short_id=$(openssl rand -hex 8)
     local dest_server="www.loewe.com" 
-
+# 1. 插入位置：在变量生成后，立即将公钥写入文件
+    echo "$pub_key" > ${conf_dir}/pub.key
+    
     # 构建配置 JSON[cite: 1, 2]
     cat <<EOF > $config_path
 {
@@ -107,9 +204,9 @@ EOF
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
-# 2 VLESS-WS-TLS 协议逻辑[cite: 4, 5]
 # 2 VLESS-WS-TLS 协议逻辑完善版
 gen_vless_ws() {
+    mkdir -p $conf_dir  # 确保目录存在
     check_domain # 检查域名解析是否指向本机[cite: 2]
     install_caddy # 确保 Caddy 已安装[cite: 2]
     
@@ -140,17 +237,13 @@ gen_vless_ws() {
 }
 EOF
 
-# 修正后的 Caddy 配置：确保反代路径精确且支持 h2c[cite: 2, 3]
+# 修正后的 Caddy 配置：恢复对标准 WebSocket 的支持
     echo "$domain {
     tls {
         protocols tls1.2 tls1.3
     }
-    # 注意：反代 localhost 时不要带协议头，直接写端口
-    reverse_proxy /$path 127.0.0.1:$port {
-        transport http {
-            versions h2c
-        }
-    }
+    # 核心修正：移除 transport 块，直接反代路径
+    reverse_proxy /$path 127.0.0.1:$port
 }" > /etc/caddy/Caddyfile
 
     # 3. 重启服务使配置生效[cite: 2]
@@ -164,6 +257,7 @@ EOF
 # 2 vless_grpc 协议配置
 # 3 VLESS-gRPC-TLS 协议逻辑完善版
 gen_vless_grpc() {
+    mkdir -p $conf_dir  # 确保目录存在
     check_domain # 检查域名解析
     install_caddy # 确保 Caddy 已安装
     
@@ -217,6 +311,7 @@ EOF
 
 # 4 VLESS-XHTTP-TLS 协议逻辑 - 最终兼容版
 gen_vless_xhttp() {
+    mkdir -p $conf_dir  # 确保目录存在
     check_domain
     install_caddy
     local uuid=$(cat /proc/sys/kernel/random/uuid)
@@ -265,6 +360,7 @@ EOF
 
 # 5 Trojan-WS-TLS 协议逻辑优化版
 gen_trojan_ws() {
+    mkdir -p $conf_dir  # 确保目录存在
     check_domain
     install_caddy
     
@@ -274,8 +370,6 @@ gen_trojan_ws() {
     
     local path=$(openssl rand -hex 6)
     local port=10004
-
-    echo -e "${Font_Cyan}正在配置 Trojan-WS-TLS (Caddy 反代)...${Font_Suffix}"
 
     # 1. 配置 Xray 核心 (Trojan 协议层)
     cat <<EOF > $config_path
@@ -315,6 +409,7 @@ EOF
 
 # 6 Trojan-gRPC-TLS 协议逻辑优化版
 gen_trojan_grpc() {
+    mkdir -p $conf_dir  # 确保目录存在
     check_domain
     install_caddy
     
@@ -500,36 +595,47 @@ show_usage() {
 }
 
 # --- 4. 主菜单分发 ---
-# --- 4. 主菜单分发 ---
 main_menu() {
     clear
-    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.03.52 ---${Font_Suffix}"
-    echo -e "${Font_Blue}1. 安装 VLESS-REALITY【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}2. 安装 VLESS-WS-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}3. 安装 VLESS-gRPC-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}4. 安装 VLESS-XHTTP-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}5. 安装 Trojan-WS-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Blue}6. 安装 Trojan-gRPC-TLS【ok】${Font_Suffix}"
-    echo -e "${Font_Cyan}t. 查看流量统计 (vnstat)${Font_Suffix}"
-    echo -e "${Font_Red}7. 卸载与清理${Font_Suffix}"
-    echo -e "${Font_Yellow}q. 退出脚本${Font_Suffix}"  # 添加退出选项显示
+    echo -e "${Font_Magenta}--- Xray 模块化管理脚本v1.05.01.12.12 ---${Font_Suffix}"
+    echo -e "${Font_Blue} 【1】 . 安装 VLESS-REALITY${Font_Suffix}"
+    echo -e "${Font_Blue} 【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
+    echo -e "${Font_Blue} 【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
+    echo -e "${Font_Blue} 【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
+    echo -e "${Font_Blue} 【5】 . 安装 Trojan-WS-TLS${Font_Suffix}"
+    echo -e "${Font_Blue} 【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}"
+    echo -e "----------------------------------------"
+    echo -e "${Font_Green} 【v】 . 查看当前协议信息与链接${Font_Suffix}" 
+    echo -e "${Font_Cyan} 【t】 . 查看流量统计 (vnstat)${Font_Suffix}"
+    echo -e "${Font_Red} 【7】 . 卸载与清理${Font_Suffix}"
+    echo -e "${Font_Yellow} 【q】 . 退出脚本${Font_Suffix}" 
+    echo -e "----------------------------------------"
     read -p "请选择: " num
 
     case "$num" in
-        1) preparation_stack; gen_vless_reality ;;
-        2) preparation_stack; gen_vless_ws ;;
-        3) preparation_stack; gen_vless_grpc ;;
-        4) preparation_stack; gen_vless_xhttp ;;
-        5) preparation_stack; gen_trojan_ws ;;
-        6) preparation_stack; gen_trojan_grpc ;;
+        1) preparation_stack; gen_vless_reality; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键返回菜单...${Font_Suffix}"; read; exit 0 ;;
+        2) preparation_stack; gen_vless_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        3) preparation_stack; gen_vless_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        4) preparation_stack; gen_vless_xhttp; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        5) preparation_stack; gen_trojan_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        v) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
         t) show_usage; main_menu ;;
-        7) systemctl stop xray caddy; apt-get remove --purge -y vnstat caddy; echo "清理完成";;
-        q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;; # 添加退出逻辑
-        *) echo -e "${Font_Red}无效输入，请输入正确选项。${Font_Suffix}"; sleep 1; main_menu ;; # 优化无效输入处理
+        7) 
+            read -p "确定要卸载吗？(y/n): " confirm
+            if [[ "$confirm" == "y" ]]; then
+                apt-mark unhold xray caddy 2>/dev/null[cite: 1]
+                systemctl stop xray caddy
+                apt-get remove --purge -y xray caddy vnstat
+                rm -rf $conf_dir
+                echo -e "${Font_Green}清理完成${Font_Suffix}"
+                read -p "按回车键返回主菜单"
+            fi
+            main_menu ;;
+        q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;;
+        *) echo -e "${Font_Red}无效输入，请输入正确选项。${Font_Suffix}"; sleep 1; main_menu ;;
     esac
 }
-
-# ... 前面是所有的函数定义 ...
 
 # 脚本入口
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
