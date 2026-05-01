@@ -4,6 +4,7 @@
 # Project: Xray Moduler Refactoring
 # Protocols: VLESS-WS/gRPC/XHTTP/REALITY, Trojan-WS/gRPC
 # Author: linuxhobby
+# 修改功能：1、域名检测。2、信息查询功能。3、优化菜单
 # ====================================================
 
 # 终端颜色定义
@@ -603,7 +604,7 @@ main_menu() {
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.05.01.12.24    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
-    echo -e "${Font_Red}   当前系统：$OS_NAME    ${Font_Suffix}"
+    echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-------------------------------------------"
     echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
