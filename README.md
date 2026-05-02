@@ -1,20 +1,16 @@
-鉴于xray能完全向下兼容v2ray的协议，目前正在修改xray版一键安装代码，目前已经测试完三种协议矩阵。
-
-# 介绍 (最后更新：2026/04/28)
-第一版：2026/04/26
+# 介绍 (最后更新：2026/05/01)
+* 第1版：2026/04/26，以v2ray为内核，支持6中协议矩阵。  
+* 第2版：2026/05/01，以xray为内核，支持6中协议矩阵。  
 
 建议使用debian12/13系统，或Ubuntu25/26。  
 目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。  
-脚本界面：  
-<img width="521" height="433" alt="image" src="https://github.com/user-attachments/assets/ba216600-9617-43e3-b74d-6f6ef86c4348" />
-
-目前支持的协议：  
-<img width="585" height="379" alt="image" src="https://github.com/user-attachments/assets/6c6f1351-1911-4fc4-a07c-038778e075f2" />
-
+脚本界面展示：  
+<img width="467" height="431" alt="image" src="https://github.com/user-attachments/assets/34f14b67-b6b8-4ecc-b5ea-bdfc894e0ff0" />
 
 ## 安装之前......您需要
 * **1台带公网IPv4/ipv6的VPS服务器**
-* **1个域名**
+* **1个域名**（也可以不要）
+    * 如果使用VLESS-REALITY-Vision，可以不需要域名。
     * 在域名管理后台，把域名与IP之间做好解析设置，A记录。
 
 ## 一键下载安装 
@@ -65,7 +61,7 @@ wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/autoinstal
 | 维度 | 特点 |
 | :--- | :--- |
 | **反向代理** | 使用 **Caddy**，配置极简且实现证书自动申领 |
-| **减少供应链** | 全部采用直接到 **v2ray** 和 **Caddy** 官方库拉去资源，减少供应链 ，增加安全可靠性|
+| **减少供应链** | 全部采用直接到 **xray/v2ray** 和 **Caddy** 官方库拉去资源，减少供应链 ，增加安全可靠性|
 | **协议多样性** | 目前支持 **多个协议全阵列**，涵盖 gRPC、H2 等前沿变体，但是可方便添加和删减，不需要修改太多代码 |
 | **标识习惯** | 自动注入 **域名 + 日期** (如 `domain_0425`)，便于快速识别 |
 | **系统侵入性** | 路径标准化为 `/etc/v2ray`，由 `systemd` 原生管理 |
