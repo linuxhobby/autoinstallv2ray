@@ -10,7 +10,11 @@
 #  【4】 . 安装 VLESS-XHTTP-TLS
 #  【5】 . 安装 Trojan-WS-TLS
 #  【6】 . 安装 Trojan-gRPC-TLS
-# 修改功能：1、域名检测。2、信息查询功能。3、优化菜单
+#   修改功能：
+#   2025/05/01：1、域名检测。2、信息查询功能。3、优化菜单。
+#   2025/05/02：增加二维码展示功能。
+#   
+#   
 # ====================================================
 
 # 终端颜色定义
@@ -30,7 +34,7 @@ is_core="xray"
 #config_path="/usr/local/etc/xray/config.json"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-#默认域名 xary.linuxhobbt.com
+#默认域名
 PRESET_DOMAIN="" # 如果不想预设，留空即可 ""
 # --- 版本控制中心 ---
 # 锁定 Xray 内核版本
@@ -48,7 +52,7 @@ preparation_stack() {
     
     # 1.2. 基础依赖与流量统计安装[cite: 2]
     apt-get update
-    apt-get install -y wget curl socat tar unzip vnstat
+    apt-get install -y wget curl socat tar unzip vnstat qrencode
     systemctl enable vnstat
     systemctl start vnstat
     
@@ -78,12 +82,16 @@ preparation_stack() {
     fi
 }
 
-# --- 2. 域名解析检测优化版：增加循环重试机制 ---
+
+# --- 2. 二维码 ---
+# --- 3. 信息展示与统计模块 ---
+
+# --- 3. 域名解析检测优化版：增加循环重试机制 ---
 check_domain() {
     while true; do
         # 1. 增加预设域名逻辑：如果变量不为空，则提供默认值选项
         if [[ -n "$PRESET_DOMAIN" ]]; then
-            read -p "请输入您的解析域名 [直接回车使用: $PRESET_DOMAIN]: " domain
+            read -p "请输入您的解析域名后回车 [默认域名: $PRESET_DOMAIN]: " domain
             domain=${domain:-$PRESET_DOMAIN}
         else
             read -p "请输入您的解析域名: " domain
@@ -500,6 +508,8 @@ show_reality_info() {
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接 (请确保完整复制):${Font_Suffix}"
     echo -e "$link"
+    # 新增：在此处显示二维码
+    show_qr_code "$link"
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
 }
 
@@ -524,6 +534,7 @@ show_ws_info() {
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
+    show_qr_code "$link"
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
 }
 
@@ -547,6 +558,7 @@ show_grpc_info() {
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
+    show_qr_code "$link"
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
 }
 
@@ -568,6 +580,7 @@ show_xhttp_info() {
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
+    show_qr_code "$link"
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
 }
 
@@ -602,6 +615,17 @@ show_trojan_info() {
     echo -e "${Font_Magenta}========================================${Font_Suffix}"
 }
 
+# 新增：二维码展示函数
+show_qr_code() {
+    local link=$1
+    if command -v qrencode &> /dev/null; then
+        echo -e "${Font_Cyan}手机客户端扫描二维码:${Font_Suffix}"
+        echo "$link" | qrencode -t utf8
+    else
+        echo -e "${Font_Red}提示: qrencode 未安装，无法生成二维码。${Font_Suffix}"
+    fi
+}
+
 # --- 4. 流量统计看板 ---
 show_usage() {
     echo -e "${Font_Magenta}--- 流量统计看板 ---${Font_Suffix}"
@@ -620,7 +644,7 @@ main_menu() {
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-------------------------------------------"
-    echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}"
+    echo -e "${Font_Red}  【1】 . 安装 VLESS-REALITY-Vision 【推荐】${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
