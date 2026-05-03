@@ -748,7 +748,7 @@ main_menu() {
     echo -e "${Font_Red}===========================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/03   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.05.03.09.55    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.05.03.10.11    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-------------------------------------------"
@@ -776,6 +776,14 @@ main_menu() {
         d) 
             read -p "确定要卸载吗？(y/n): " confirm
             if [[ "$confirm" == "y" ]]; then
+                systemctl stop xray
+                systemctl disable xray
+                bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) remove
+                rm -f /etc/systemd/system/xray.service
+                rm -f /etc/systemd/system/xray@.service
+                rm -rf /etc/systemd/system/xray.service.d
+                systemctl daemon-reload
+                apt-get purge caddy
                 apt-mark unhold xray caddy 2>/dev/null[cite: 1]
                 systemctl stop xray caddy
                 apt-get remove --purge -y xray caddy vnstat
