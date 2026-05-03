@@ -14,7 +14,7 @@
 # 1. 2026/04/26，v1.0.0.0，支持多个协议全阵列，推荐以VLESS-WS-TLS协议安装，默认同步上海时区，集成 查看/新增/删除 管理逻辑，以及BBR和vnstat两个工具包。
 # 2. 2026/04/27，新增 BBR 战略加速模块
 # 3. 此版本经过 Debian12、Debian13、Ubuntu25、Ubuntu26 测试通过
-# 4. 一键指令 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/autoinstallv2ray/master/install.sh && chmod +x install.sh && ./install.sh
+# 4. 一键指令 wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/master/install.sh && chmod +x install.sh && ./install.sh
 # ====================================================
 # 防止最新版本的兼容性，指定v2ray和caddy经过测试稳定的版本，根据实际的升级，日后可以调整升级。
 V2_VERSION="v5.49.0"     # 锁定 V2Ray 版本
