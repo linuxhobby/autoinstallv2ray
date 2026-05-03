@@ -42,39 +42,61 @@ XRAY_VERSION="26.3.27"
 # 锁定 Caddy 版本
 CADDY_VERSION="2.8.4"
 # 是否锁定版本不随系统升级 (1为开启锁定)
-FIX_VER=1
+FIX_VER=0
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
-    # 1.1. 设置上海时区[cite: 1]
-    mv /etc/localtime /etc/localtime.bak
+    # 1.1. 设置时区
+    rm -f /etc/localtime
     ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
     
-    # 1.2. 基础依赖与流量统计安装[cite: 2]
+    # 1.2. 安装基础依赖
     apt-get update
-    apt-get install -y wget curl socat tar unzip vnstat qrencode
-    systemctl enable vnstat
-    systemctl start vnstat
+    apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2
+    systemctl enable vnstat --now
     
-    # 1.3. 自动安装 Xray 内核 (如果不存在)
-    install_caddy() {
-        if ! command -v caddy &> /dev/null; then
-            echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
-            curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-            curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-            apt-get update
+    # 1.3. 强制安装 Xray 核心并修复路径
+    if ! command -v xray &> /dev/null; then
+        _yellow ">>> 正在通过官方脚本部署 Xray 最新版核心..."
+        # 移除 -v 参数，默认安装最新版本
+        bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) install
         
-            # 修改点：指定版本安装[cite: 1]
-            apt-get install caddy=${CADDY_VERSION} -y
-        
-            # 修改点：执行版本锁定[cite: 1]
-            if [ "$FIX_VER" -eq 1 ]; then
-                apt-mark hold caddy
-            fi
-        fi
-    }
+        # 【关键修复 1】强制建立软链接，确保系统任何地方都能调到 xray
+        ln -sf /usr/local/bin/xray /usr/bin/xray
+        # 【关键修复 2】刷新当前 Shell 的命令哈希表，防止 command not found
+        hash -r
+    fi
 
-    # 1.4. 开启 BBR 加速[cite: 3]
+    # 【关键修复 3】确保 systemd 能够识别新安装的服务
+    if [ ! -f "/e/systemd/system/xray.service" ] && [ ! -f "/lib/systemd/system/xray.service" ]; then
+        _yellow ">>> 正在补偿性生成 xray.service 单元..."
+        # 如果官方脚本没生成成功（极少数情况），这里手动补一个
+        cat <<EOF > /etc/systemd/system/xray.service
+[Unit]
+Description=Xray Service
+Documentation=https://github.com/xtls/xray-core
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ExecStart=/usr/local/bin/xray run -config /usr/local/etc/xray/config.json
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
+    systemctl daemon-reload
+    systemctl enable xray
+
+    # 1.4. 开启 BBR (保持原样)
     if [[ $(lsmod | grep bbr) == "" ]]; then
         echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
         echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
@@ -82,9 +104,23 @@ preparation_stack() {
     fi
 }
 
+# --- 1.5. Caddy 安装函数（独立出来）---
+install_caddy() {
+    if ! command -v caddy &> /dev/null; then
+        echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
+        # 添加 Caddy 官方源逻辑[cite: 1]
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt-get update
+        apt-get install caddy=${CADDY_VERSION} -y
+        
+        if [ "$FIX_VER" -eq 1 ]; then
+            apt-mark hold caddy
+        fi
+    fi
+}
 
-# --- 2. 二维码 ---
-# --- 3. 信息展示与统计模块 ---
+
 
 # --- 3. 域名解析检测优化版：增加循环重试机制 ---
 check_domain() {
@@ -196,35 +232,81 @@ gen_vless_reality() {
     echo -e "${Font_Cyan}正在配置 VLESS-REALITY...${Font_Suffix}"
     mkdir -p $conf_dir
     
+    # 1. 核心路径检测与修复
+    local xray_bin="/usr/local/bin/xray"
+    if [ ! -f "$xray_bin" ]; then
+        xray_bin=$(command -v xray)
+    fi
+
+    if [ -z "$xray_bin" ]; then
+        echo -e "${Font_Red}错误: 未检测到 Xray 核心，请确保执行了环境准备步骤。${Font_Suffix}"
+        return 1
+    fi
+
+    # 2. 变量生成
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     
-    # 强制重新生成密钥对并确保变量不为空
-    local keys=$($is_core x25519)
-# 改进后的提取逻辑
-	local priv_key=$(echo "$keys" | grep -i "PrivateKey" | awk -F': ' '{print $2}' | tr -d ' ')
-	echo "调试：私钥为 [$priv_key]"
-	local pub_key=$(echo "$keys" | grep -i "PublicKey" | awk -F': ' '{print $2}' | tr -d ' ')
-	echo "调试：公钥为 [$pub_key]"
+    # 使用绝对路径生成密钥对，并增加重试逻辑
+    local keys=$($xray_bin x25519) 
+    
+    # 改进的提取逻辑：兼容不同版本的输出格式
+    local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
+    local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
+    
+    # 调试信息输出
+    echo -e "${Font_Blue}调试：私钥为 [$priv_key]${Font_Suffix}"
+    echo -e "${Font_Blue}调试：公钥为 [$pub_key]${Font_Suffix}"
+
+    if [[ -z "$priv_key" || -z "$pub_key" ]]; then
+        echo -e "${Font_Red}致命错误: 无法生成 REALITY 密钥对，请检查 Xray 是否正常。${Font_Suffix}"
+        return 1
+    fi
+
     local short_id=$(openssl rand -hex 8)
     local dest_server="www.loewe.com" 
-# 1. 插入位置：在变量生成后，立即将公钥写入文件
+    
+    # 将公钥写入文件供后续查询功能使用
     echo "$pub_key" > ${conf_dir}/pub.key
     
-    # 构建配置 JSON[cite: 1, 2]
+    # 3. 构建配置文件[cite: 1, 2]
     cat <<EOF > $config_path
 {
     "log": { "loglevel": "warning" },
     "inbounds": [{
-        "port": 443, "protocol": "vless",
-        "settings": { "clients": [{ "id": "$uuid", "flow": "xtls-rprx-vision" }], "decryption": "none" },
-        "streamSettings": { "network": "tcp", "security": "reality",
-            "realitySettings": { "show": false, "dest": "$dest_server:443", "xver": 0, "serverNames": ["$dest_server"], "privateKey": "$priv_key", "shortIds": ["$short_id"] }
+        "port": 443, 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid", "flow": "xtls-rprx-vision" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "tcp", 
+            "security": "reality",
+            "realitySettings": { 
+                "show": false, 
+                "dest": "$dest_server:443", 
+                "xver": 0, 
+                "serverNames": ["$dest_server"], 
+                "privateKey": "$priv_key", 
+                "shortIds": ["$short_id"] 
+            }
         }
     }],
     "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
-    systemctl restart $is_core
+
+    # 4. 重启服务[cite: 1, 2, 3]
+    systemctl daemon-reload
+    if systemctl restart xray; then
+        echo -e "${Font_Green}服务重启成功！${Font_Suffix}"
+    else
+        # 最后的保底：如果服务单元真的不存在，尝试直接运行 (虽然不推荐，但可用于排查)
+        echo -e "${Font_Yellow}警告: systemd 重启失败，正在尝试通过命令启动...${Font_Suffix}"
+        pkill xray
+        nohup $xray_bin run -c $config_path > /dev/null 2>&1 &
+    fi
+    
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
@@ -636,11 +718,26 @@ show_usage() {
 # --- 5. 主菜单分发 ---
 main_menu() {
     clear
+    # --- 新增：实时状态监控 ---
+    echo -e "${Font_Magenta}--- 系统状态检查 ---${Font_Suffix}"
+    if systemctl list-unit-files | grep -q "xray.service"; then
+        if systemctl is-active --quiet xray; then
+            echo -e "Xray 服务: ${Font_Green}运行中${Font_Suffix}"
+        else
+            echo -e "Xray 服务: ${Font_Yellow}已安装但停止${Font_Suffix}"
+        fi
+    else
+        echo -e "Xray 服务: ${Font_Red}未安装${Font_Suffix}"
+    fi
+    # 顺便检查 vnstat
+    systemctl is-active --quiet vnstat && echo -e "流量统计: ${Font_Green}监控中${Font_Suffix}" || echo -e "流量统计: ${Font_Red}未启动${Font_Suffix}"
+    echo -e "-------------------------------------------"
+
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===========================================${Font_Suffix}"
-    echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/01   ${Font_Suffix}"
+    echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/02   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.05.01.12.24    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.05.02.13.01    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-------------------------------------------"
