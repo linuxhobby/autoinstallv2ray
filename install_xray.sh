@@ -57,7 +57,7 @@ preparation_stack() {
     
     # 1.3. 强制安装 Xray 核心并修复路径
     if ! command -v xray &> /dev/null; then
-        _yellow ">>> 正在通过官方脚本部署 Xray 最新版核心..."
+        echo -e "${Font_Cyan}正在通过官方脚本部署 Xray 最新版核心... v${CADDY_VERSION}...${Font_Suffix}"
         # 移除 -v 参数，默认安装最新版本
         bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) install
         
@@ -69,7 +69,7 @@ preparation_stack() {
 
     # 【关键修复 3】确保 systemd 能够识别新安装的服务
     if [ ! -f "/e/systemd/system/xray.service" ] && [ ! -f "/lib/systemd/system/xray.service" ]; then
-        _yellow ">>> 正在补偿性生成 xray.service 单元..."
+        echo -e "${Font_Cyan}正在补偿性生成 xray.service 单元... v${CADDY_VERSION}...${Font_Suffix}"
         # 如果官方脚本没生成成功（极少数情况），这里手动补一个
         cat <<EOF > /etc/systemd/system/xray.service
 [Unit]
