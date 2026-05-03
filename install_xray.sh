@@ -774,23 +774,39 @@ main_menu() {
         5) preparation_stack; gen_trojan_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
         6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
         d) 
-            read -p "确定要卸载吗？(y/n): " confirm
+            read -p "确定要彻底卸载并清理环境吗？(y/n): " confirm
             if [[ "$confirm" == "y" ]]; then
-                systemctl stop xray
-                systemctl disable xray
-                bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) remove
-                rm -f /etc/systemd/system/xray.service
-                rm -f /etc/systemd/system/xray@.service
-                rm -rf /etc/systemd/system/xray.service.d
-                systemctl daemon-reload
-                apt-get purge caddy
+                echo -e "${Font_Yellow}>>> 开始清理服务与解除锁定...${Font_Suffix}"
+    
+                # 1. 停止服务并取消锁定
+                systemctl stop xray caddy 2>/dev/null
+                systemctl disable xray caddy 2>/dev/null
                 apt-mark unhold xray caddy 2>/dev/null[cite: 1]
-                systemctl stop xray caddy
-                apt-get remove --purge -y xray caddy vnstat
-                rm -rf $conf_dir
-                echo -e "${Font_Green}清理完成${Font_Suffix}"
+
+                # 2. 优先尝试官方脚本卸载（它处理核心二进制最专业）
+                if [[ -f "/usr/local/bin/xray" ]]; then
+                    bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) remove >/dev/null 2>&1[cite: 1]
+                fi
+
+                # 3. 使用 APT 彻底清理残余包及配置
+                echo -e "${Font_Yellow}>>> 正在移除软件包...${Font_Suffix}"
+                apt-get purge -y xray caddy vnstat 2>/dev/null[cite: 1]
+                apt-get autoremove -y 2>/dev/null
+
+                # 4. 强制清理残留的服务文件和配置目录
+                echo -e "${Font_Yellow}>>> 正在清理配置文件...${Font_Suffix}"
+                rm -rf /etc/systemd/system/xray*[cite: 1]
+                rm -rf /usr/local/etc/xray[cite: 1]
+                rm -rf /etc/caddy[cite: 1]
+    
+                # 5. 特别安全检查：只有变量不为空时才删除
+                [[ -n "$conf_dir" ]] && rm -rf "$conf_dir"[cite: 1]
+
+                systemctl daemon-reload[cite: 1]
+                echo -e "${Font_Green}所有 Xray、Caddy 及相关配置已彻底清理完毕！${Font_Suffix}"
                 read -p "按回车键返回主菜单"
             fi
+            
             main_menu ;;
         q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;;
         t) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
