@@ -46,31 +46,40 @@ FIX_VER=0
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
+    # 0. 解决 APT 锁死问题 (预防 lock-frontend 报错)
+    echo -e "${Font_Cyan}>>> 正在检查并释放软件包管理器锁...${Font_Suffix}"
+    systemctl stop unattended-upgrades 2>/dev/null
+    rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock
+
     # 1.1. 设置时区
     rm -f /etc/localtime
     ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
     
     # 1.2. 安装基础依赖
     apt-get update
-    apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2
-    systemctl enable vnstat --now
+    # 确保这些工具安装成功，否则后续 qrencode 等功能会失效
+    apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2 || {
+        echo -e "${Font_Red}[X] 依赖安装失败，请检查网络或手动运行 apt update${Font_Suffix}"
+        exit 1
+    }
+    systemctl enable vnstat --now 2>/dev/null
     
     # 1.3. 强制安装 Xray 核心并修复路径
-    if ! command -v xray &> /dev/null; then
-        echo -e "${Font_Cyan}正在通过官方脚本部署 Xray 最新版核心... v${CADDY_VERSION}...${Font_Suffix}"
-        # 移除 -v 参数，默认安装最新版本
+    # 逻辑优化：只有当 xray 不存在或 service 文件缺失时才安装[cite: 1, 3]
+    if ! command -v xray &> /dev/null || [ ! -f "/etc/systemd/system/xray.service" ]; then
+        echo -e "${Font_Cyan}>>> 正在通过官方脚本部署 Xray 最新版核心...${Font_Suffix}"
+        # 移除 -v 参数，确保安装最新版本[cite: 1]
         bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh) install
         
-        # 【关键修复 1】强制建立软链接，确保系统任何地方都能调到 xray
+        # 【关键修复 1】建立软链接[cite: 1]
         ln -sf /usr/local/bin/xray /usr/bin/xray
-        # 【关键修复 2】刷新当前 Shell 的命令哈希表，防止 command not found
+        # 【关键修复 2】刷新哈希表
         hash -r
     fi
 
-    # 【关键修复 3】确保 systemd 能够识别新安装的服务
-    if [ ! -f "/e/systemd/system/xray.service" ] && [ ! -f "/lib/systemd/system/xray.service" ]; then
-        echo -e "${Font_Cyan}正在补偿性生成 xray.service 单元... v${CADDY_VERSION}...${Font_Suffix}"
-        # 如果官方脚本没生成成功（极少数情况），这里手动补一个
+    # 【关键修复 3】修正路径拼写错误：从 /e/ 改为 /etc/[cite: 3]
+    if [ ! -f "/etc/systemd/system/xray.service" ] && [ ! -f "/lib/systemd/system/xray.service" ]; then
+        echo -e "${Font_Yellow}>>> 正在补偿性生成 xray.service 单元...${Font_Suffix}"
         cat <<EOF > /etc/systemd/system/xray.service
 [Unit]
 Description=Xray Service
@@ -95,9 +104,11 @@ EOF
     
     systemctl daemon-reload
     systemctl enable xray
+    systemctl start xray
 
-    # 1.4. 开启 BBR (保持原样)
+    # 1.4. 开启 BBR
     if [[ $(lsmod | grep bbr) == "" ]]; then
+        echo -e "${Font_Cyan}>>> 开启 BBR 加速...${Font_Suffix}"
         echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
         echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
         sysctl -p
