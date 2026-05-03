@@ -588,7 +588,7 @@ show_reality_info() {
     local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
     
     # 备注命名规范[cite: 1, 2]
-    local ps_name="REALITY_${sni}_$(date +%Y%m%d)"
+    local ps_name="VLESS-REALITY_${sni}_$(date +%Y%m%d)"
     
     # 拼接完整链接，修复 pbk 为空的缺陷[cite: 2]
     local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
