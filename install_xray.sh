@@ -734,40 +734,68 @@ show_usage() {
 main_menu() {
     clear
     # --- 新增：实时状态监控 ---
-    echo -e "${Font_Magenta}--- 系统状态检查 ---${Font_Suffix}"
+# --- 新增：实时状态监控 ---
+    echo -e "${Font_Magenta}================= 系统状态检查 =================${Font_Suffix}"
+    
+    # 1. 获取本机 IP
+    # 使用 --connect-timeout 防止网络问题导致菜单卡顿
+    local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
+    echo -e "   本机 IP  : ${Font_Cyan}${local_ip}${Font_Suffix}"
+
+
+    # 2. 检查当前安装的协议[cite: 1]
+    if [[ -f $config_path ]]; then
+        local current_proto="未知"
+        if grep -q "realitySettings" $config_path; then
+            current_proto="VLESS-REALITY"
+        elif grep -q '"protocol": "trojan"' $config_path; then
+            if grep -q '"network": "ws"' $config_path; then current_proto="Trojan-WS"; 
+            else current_proto="Trojan-gRPC"; fi
+        elif grep -q '"protocol": "vless"' $config_path; then
+            local net=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
+            current_proto="VLESS-${net^^}" 
+        fi
+        echo -e "   当前协议 : ${Font_Cyan}${current_proto}${Font_Suffix}"
+    else
+        echo -e "   当前协议 : ${Font_Red}未配置${Font_Suffix}"
+    fi
+
+    # 3. 检查 Xray 服务状态
     if systemctl list-unit-files | grep -q "xray.service"; then
         if systemctl is-active --quiet xray; then
-            echo -e "Xray 服务: ${Font_Green}运行中${Font_Suffix}"
+            echo -e "   Xray 服务: ${Font_Green}运行中${Font_Suffix}"
         else
-            echo -e "Xray 服务: ${Font_Yellow}已安装但停止${Font_Suffix}"
+            echo -e "   Xray 服务: ${Font_Yellow}已安装但停止${Font_Suffix}"
         fi
     else
-        echo -e "Xray 服务: ${Font_Red}未安装${Font_Suffix}"
+        echo -e "   Xray 服务: ${Font_Red}未安装${Font_Suffix}"
     fi
-    # 顺便检查 vnstat
-    systemctl is-active --quiet vnstat && echo -e "流量统计: ${Font_Green}监控中${Font_Suffix}" || echo -e "流量统计: ${Font_Red}未启动${Font_Suffix}"
-    echo -e "-------------------------------------------"
 
+
+    # 4. 检查 vnstat[cite: 1]
+    systemctl is-active --quiet vnstat && echo -e "   流量统计 : ${Font_Green}监控中${Font_Suffix}" || echo -e "   流量统计 : ${Font_Red}未启动${Font_Suffix}"
+    
+    
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
-    echo -e "${Font_Red}===========================================${Font_Suffix}"
+    echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/04   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.0.05.04.11.47    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
-    echo -e "-------------------------------------------"
+    echo -e "-----------------------------------------------"
     echo -e "${Font_Red}  【1】 . 安装 VLESS-REALITY-Vision 【推荐】${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【5】 . 安装 Trojan-WS-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}"
-    echo -e "-------------------------------------------"
+    echo -e "-----------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
     echo -e "${Font_Red}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
-    echo -e "-------------------------------------------"
+    echo -e "-----------------------------------------------"
     read -p "请选择: " num
 
     case "$num" in
