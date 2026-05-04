@@ -1,6 +1,5 @@
-[项目主页](https://github.com)
-
-## 如果发现BUG，请在这里告诉我！[BUG反馈]（https://github.com/linuxhobby/xray-v2ray-install/issues/1）
+## 如果发现BUG，请在这里告诉我！  
+### [BUG反馈] （https://github.com/linuxhobby/xray-v2ray-install/issues/1）
 # 介绍 (最后更新：2026/05/04)
 * 第1版：2026/04/26，以v2ray为内核，支持6中协议矩阵。  
 * 第2版：2026/05/01，以xray为内核，支持6中协议矩阵。  
