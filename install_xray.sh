@@ -45,10 +45,26 @@ FIX_VER=0
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
-    # 0. 解决 APT 锁死问题
-    echo -e "${Font_Cyan}>>> 正在检查并释放软件包管理器锁...${Font_Suffix}"
+    echo -e "${Font_Cyan}>>> 正在深度清理软件包管理器锁 (防止安装失败)...${Font_Suffix}"
+    
+    # 1. 停止并禁用自动更新服务
     systemctl stop unattended-upgrades 2>/dev/null
+    systemctl disable unattended-upgrades 2>/dev/null
+    
+    # 2. 循环检查并杀死占用 apt/dpkg 的进程
+    local kill_count=0
+    while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        if [ $kill_count -gt 5 ]; then break; fi
+        fuser -k /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1
+        sleep 1
+        ((kill_count++))
+    done
+
+    # 3. 强制删除锁文件[cite: 1]
     rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock
+    
+    # 4. 重新配置 dpkg 以修复可能的损坏[cite: 1]
+    dpkg --configure -a
 
     # 1.1. 安装 ufw 并自动开放端口
     echo -e "${Font_Cyan}>>> 正在配置系统防火墙策略...${Font_Suffix}"
@@ -132,23 +148,32 @@ EOF
 install_caddy() {
     if ! command -v caddy &> /dev/null; then
         echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
-        # 添加 Caddy 官方源逻辑
+        
+        # 1. 清理可能存在的旧密钥和源文件（防止 GPG 报错）
+        rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        rm -f /etc/apt/sources.list.d/caddy-stable.list
+
+        # 2. 添加官方源
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        
+        # 3. 更新索引并安装
         apt-get update
-        # 尝试安装指定版本
         apt-get install caddy=${CADDY_VERSION} -y || apt-get install caddy -y
         
-        if [ "$FIX_VER" -eq 1 ]; then
+        # 4. 锁定版本（如果 FIX_VER 为 1）
+        if [ "$FIX_VER" -eq 1 ] && command -v caddy &> /dev/null; then
             apt-mark hold caddy
         fi
-    fi
 
-    # 【核心修复】强制创建配置目录
-    # 即使 caddy 已经安装，也要确保目录存在，否则写入 Caddyfile 会失败
-    if [ ! -d "/etc/caddy" ]; then
-        mkdir -p /etc/caddy
+        # 5. 安装后检测
+        if ! command -v caddy &> /dev/null; then
+            echo -e "${Font_Red}[X] 错误：Caddy 安装失败。可能原因：APT 锁被占用或源连接超时。${Font_Suffix}"
+            exit 1
+        fi
     fi
+    # 确保配置目录存在
+    mkdir -p /etc/caddy
 }
 
 # --- 3. 域名解析检测优化版：增加循环重试机制 ---
@@ -817,7 +842,7 @@ main_menu() {
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/04   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.04.16.08    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.04.16.18    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
