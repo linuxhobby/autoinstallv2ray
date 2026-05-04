@@ -763,7 +763,7 @@ main_menu() {
     echo -e "${Font_Blue}  【5】 . 安装 Trojan-WS-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}"
     echo -e "-------------------------------------------"
-    echo -e "${Font_Magenta}  【t】 . 查看当前协议信息与链接${Font_Suffix}" 
+    echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
     echo -e "${Font_Red}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
@@ -818,7 +818,7 @@ fi
             
             main_menu ;;
         q) echo -e "${Font_Green}退出脚本。${Font_Suffix}"; exit 0 ;;
-        t) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
+        c) check_current_protocol; main_menu ;; # 这个函数末尾已经有 read 了，不用加
         v) show_usage; main_menu ;;
         *) echo -e "${Font_Red}无效输入，请输入正确选项。${Font_Suffix}"; sleep 1; main_menu ;;
     esac
