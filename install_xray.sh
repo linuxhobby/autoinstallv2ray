@@ -717,8 +717,8 @@ show_qr_code() {
     local link=$1
     if command -v qrencode &> /dev/null; then
         echo -e "${Font_Cyan}手机客户端扫描二维码:${Font_Suffix}"
-        #echo "$link" | qrencode -t utf8
-        echo "$link" | qrencode -t utf8 -s 2
+        echo "$link" | qrencode -t utf8
+        #echo "$link" | qrencode -t utf8 -s 2
         #echo "$link" | qrencode -t utf8 -s 1 -m 2
     else
         echo -e "${Font_Red}提示: qrencode 未安装，无法生成二维码。${Font_Suffix}"
