@@ -780,7 +780,7 @@ main_menu() {
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/04   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.04.14.29    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.04.14.32    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
