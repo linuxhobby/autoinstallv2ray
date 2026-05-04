@@ -196,9 +196,15 @@ check_current_protocol() {
     # 获取 IP 和 域名
     local ip=$(curl -4 -s --connect-timeout 5 ip.sb || curl -s http://ipv4.icanhazip.com)
     # 优先从 Caddyfile 提取域名
-    local domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ')
-    [[ -z "$domain" ]] && domain=$(grep -oP '(?<="serverNames": \[")[^"]+' $config_path | head -n1)
-    [[ -z "$domain" ]] && domain=$ip
+# --- 修正后的域名提取逻辑 ---
+local domain=""
+if [[ -f "/etc/caddy/Caddyfile" ]]; then
+    domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ')
+fi
+
+# 如果 Caddyfile 不存在或没提到域名，则尝试从 Xray 配置或 IP 获取
+[[ -z "$domain" ]] && domain=$(grep -oP '(?<="serverNames": \[")[^"]+' $config_path | head -n1)
+[[ -z "$domain" ]] && domain=$ip
 
     # 2. 识别协议类型并分发显示
     if grep -q "realitySettings" $config_path; then
