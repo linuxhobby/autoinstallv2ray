@@ -6,7 +6,8 @@
 建议使用debian12/13系统，或Ubuntu25/26。  
 目前脚本已经通过测试的系统：**Debian12/13**，**ubuntu25/26**。  
 脚本界面展示：  
-<img width="467" height="431" alt="image" src="https://github.com/user-attachments/assets/34f14b67-b6b8-4ecc-b5ea-bdfc894e0ff0" />
+<img width="392" height="504" alt="image" src="https://github.com/user-attachments/assets/6aa6fb72-4618-4b8a-bbce-f03e2201761c" />
+
 
 ## 安装之前......您需要
 * **1台带公网IPv4/ipv6的VPS服务器**
