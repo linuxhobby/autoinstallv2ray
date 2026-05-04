@@ -33,7 +33,7 @@ is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
 #默认域名
-PRESET_DOMAIN="" # 如果不想预设，留空即可 ""
+PRESET_DOMAIN="vcc.myvpsworld.top" # 如果不想预设，留空即可 ""
 # --- 版本控制中心 ---
 # 锁定 Xray 内核版本
 XRAY_VERSION="26.3.27"
@@ -44,22 +44,36 @@ FIX_VER=0
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
-    # 0. 解决 APT 锁死问题 (预防 lock-frontend 报错)
+    # 0. 解决 APT 锁死问题
     echo -e "${Font_Cyan}>>> 正在检查并释放软件包管理器锁...${Font_Suffix}"
     systemctl stop unattended-upgrades 2>/dev/null
     rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock
 
-    # 1.1. 设置时区
+    # 1.1. 安装 ufw 并自动开放端口
+    echo -e "${Font_Cyan}>>> 正在配置系统防火墙策略...${Font_Suffix}"
+    apt-get update && apt-get install -y ufw
+    
+    # 允许 SSH (默认22)，防止断连
+    ufw allow 22/tcp 
+    # 允许 80/443 用于 Caddy 证书申请和 Xray 服务
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 443/udp
+    
+    # 静默开启 ufw (输入 y 确认)
+    echo "y" | ufw enable
+    echo -e "${Font_Green}[OK] 系统防火墙已自动开放 80, 443 端口。${Font_Suffix}"
+
+    # 1.2. 设置时区
     rm -f /etc/localtime
     ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
     
-    # 1.2. 安装基础依赖
-    apt-get update
-    # 确保这些工具安装成功，否则后续 qrencode 等功能会失效
+    # 1.3. 安装基础依赖[cite: 1]
     apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2 || {
-        echo -e "${Font_Red}[X] 依赖安装失败，请检查网络或手动运行 apt update${Font_Suffix}"
+        echo -e "${Font_Red}[X] 依赖安装失败${Font_Suffix}"
         exit 1
     }
+    
     systemctl enable vnstat --now 2>/dev/null
     
     # 1.3. 强制安装 Xray 核心并修复路径
@@ -117,19 +131,24 @@ EOF
 install_caddy() {
     if ! command -v caddy &> /dev/null; then
         echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
-        # 添加 Caddy 官方源逻辑[cite: 1]
+        # 添加 Caddy 官方源逻辑
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
         apt-get update
-        apt-get install caddy=${CADDY_VERSION} -y
+        # 尝试安装指定版本
+        apt-get install caddy=${CADDY_VERSION} -y || apt-get install caddy -y
         
         if [ "$FIX_VER" -eq 1 ]; then
             apt-mark hold caddy
         fi
     fi
+
+    # 【核心修复】强制创建配置目录
+    # 即使 caddy 已经安装，也要确保目录存在，否则写入 Caddyfile 会失败
+    if [ ! -d "/etc/caddy" ]; then
+        mkdir -p /etc/caddy
+    fi
 }
-
-
 
 # --- 3. 域名解析检测优化版：增加循环重试机制 ---
 check_domain() {
@@ -151,7 +170,10 @@ check_domain() {
         # 3. 获取域名的解析结果（优化提取逻辑，确保兼容性）
         local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
         
-        echo -e "${Font_Cyan}本机 IPv4: $local_ipv4 | IPv6: $local_ipv6${Font_Suffix}"
+        #echo -e "${Font_Cyan}本机 IPv4: $local_ipv4 | IPv6: $local_ipv6${Font_Suffix}"
+        #echo -e "${Font_Cyan}本机 IPv4: $local_ipv4\n本机 IPv6: $local_ipv6${Font_Suffix}"
+        echo -e "${Font_Cyan}本机 IPv4: $local_ipv4${Font_Suffix}"
+        echo -e "${Font_Cyan}本机 IPv6: $local_ipv6${Font_Suffix}"
         if [[ -n "$resolved_ips" ]]; then
             echo -e "${Font_Cyan}域名解析地址:${Font_Suffix}\n$resolved_ips"
         else
@@ -708,7 +730,8 @@ show_trojan_info() {
     fi
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
-    echo -e "$link"
+    # 【新增：在此处调用二维码展示函数】
+    show_qr_code "$link"
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
@@ -726,7 +749,20 @@ show_qr_code() {
 # --- 4. 流量统计看板 ---
 show_usage() {
     echo -e "${Font_Magenta}--- 流量统计看板 ---${Font_Suffix}"
-    vnstat -d && vnstat -m
+    # 检查 vnstat 是否已安装
+    if ! command -v vnstat &> /dev/null; then
+        echo -e "${Font_Yellow}检测到 vnstat 未安装，正在尝试为您安装...${Font_Suffix}"
+        apt-get update && apt-get install -y vnstat
+        systemctl enable vnstat --now
+        echo -e "${Font_Green}安装完成，请稍等片刻让数据开始收集。${Font_Suffix}"
+    fi
+    
+    # 再次检查是否安装成功
+    if command -v vnstat &> /dev/null; then
+        vnstat -d && vnstat -m
+    else
+        echo -e "${Font_Red}错误: 无法安装 vnstat，请检查网络或源设置。${Font_Suffix}"
+    fi
     read -p "按回车键返回主菜单"
 }
 
@@ -780,7 +816,7 @@ main_menu() {
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/04   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.04.14.52    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.04.15.38    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
