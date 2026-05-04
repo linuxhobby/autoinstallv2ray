@@ -598,16 +598,16 @@ show_reality_info() {
     local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
 
     echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接 (请确保完整复制):${Font_Suffix}"
     echo -e "$link"
     # 新增：在此处显示二维码
     show_qr_code "$link"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_ws_info() {
@@ -623,16 +623,16 @@ show_ws_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=ws&host=$domain&path=%2F$path#$ps_name"
 
     echo -e "${Font_Green}VLESS-WS-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_grpc_info() {
@@ -647,16 +647,16 @@ show_grpc_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=grpc&serviceName=$serviceName&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-gRPC-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $serviceName"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_xhttp_info() {
@@ -669,16 +669,16 @@ show_xhttp_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=xhttp&path=%2F$path&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-XHTTP-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}模式:${Font_Suffix} auto (建议客户端手动选 auto)${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_trojan_info() {
@@ -697,7 +697,7 @@ show_trojan_info() {
     fi
 
     echo -e "${Font_Green}Trojan-$type 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Cyan}密码:${Font_Suffix} $pass"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $host"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
@@ -706,10 +706,10 @@ show_trojan_info() {
     else
         echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $param"
     fi
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
-    echo -e "${Font_Magenta}========================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 # 新增：二维码展示函数
@@ -740,7 +740,7 @@ main_menu() {
     # 1. 获取本机 IP
     # 使用 --connect-timeout 防止网络问题导致菜单卡顿
     local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
-    echo -e "   本机 IP  : ${Font_Cyan}${local_ip}${Font_Suffix}"
+    echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
 
 
     # 2. 检查当前安装的协议[cite: 1]
@@ -755,7 +755,7 @@ main_menu() {
             local net=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
             current_proto="VLESS-${net^^}" 
         fi
-        echo -e "   当前协议 : ${Font_Cyan}${current_proto}${Font_Suffix}"
+        echo -e "   当前协议 : ${Font_Green}${current_proto}${Font_Suffix}"
     else
         echo -e "   当前协议 : ${Font_Red}未配置${Font_Suffix}"
     fi
