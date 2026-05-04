@@ -735,7 +735,7 @@ main_menu() {
     clear
     # --- 新增：实时状态监控 ---
 # --- 新增：实时状态监控 ---
-    echo -e "${Font_Magenta}================= 系统状态检查 =================${Font_Suffix}"
+    echo -e "${Font_Magenta}================= 系统状态检查 ================${Font_Suffix}"
     
     # 1. 获取本机 IP
     # 使用 --connect-timeout 防止网络问题导致菜单卡顿
