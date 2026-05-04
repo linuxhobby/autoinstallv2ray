@@ -784,7 +784,7 @@ main_menu() {
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
-    echo -e "${Font_Red}  【1】 . 安装 VLESS-REALITY-Vision 【推荐】${Font_Suffix}"
+    echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}${Font_Red}【推荐】${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}"
     echo -e "${Font_Blue}  【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}"
@@ -793,7 +793,7 @@ main_menu() {
     echo -e "-----------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
-    echo -e "${Font_Red}  【d】 . 卸载与清理${Font_Suffix}"
+    echo -e "${Font_Green}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
     echo -e "-----------------------------------------------"
     read -p "请选择: " num
