@@ -31,7 +31,7 @@ wget -O install_xray.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-
 wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/master/install_v2ray.sh && chmod +x install_v2ray.sh && ./install_v2ray.sh
 ```
 
-# V2Ray vs Xray 自动化安装脚本对比报告
+# 两个脚本对比
 
  `install_v2ray.sh` 和 `install_xray.sh` 两个脚本均支持Debian、Ubuntu系统，其他系统没有测试过，估计也测试不通，因为脚本使用apt指令安装软件包、兼容性。
 
