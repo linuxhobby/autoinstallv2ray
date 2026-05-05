@@ -82,13 +82,13 @@ wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray
 
 ## 结论与建议
 
-### 🚀 推荐使用 `install_xray.sh`
+### 🚀 移动端推荐使用 `install_xray.sh`
 如果您追求：
 1. **免域名方案**（使用 REALITY）。
 2. **手机端快速配制**（使用二维码）。
 3. **更强的系统兼容性**（自动处理 apt 锁定）。
 
-### 🛡️ 推荐使用 `install_v2ray.sh`
+### 🛡️ 电脑端推荐使用 `install_v2ray.sh`
 如果您追求：
 1. **传统环境的极度兼容性**。
 2. **特定的 Caddy 2.11 版本特性**。
