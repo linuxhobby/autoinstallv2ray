@@ -94,7 +94,7 @@ wget -O install_v2ray.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray
 2. **特定的 Caddy 2.11 版本特性**。
 
 ---
-*报告生成时间：2026-05-05*
+*最后更新：2026-05-05*
 
 作者签名：人生若只如初见
 
