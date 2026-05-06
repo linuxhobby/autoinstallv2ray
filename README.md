@@ -95,7 +95,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ## ⚖️ 免责声明
 
-仅供学习研究，请遵守法律法规
+仅供学习研究。
 
 ---
 
