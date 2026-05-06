@@ -2,7 +2,7 @@
 
 ```bash
 apt update && apt install wget -y
-wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh && chmod +x install.sh && ./install.sh
+wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh && ./install.sh
 ```
 ---
 # 🚀 Xray 一键安装脚本
@@ -17,7 +17,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 如果你发现任何问题，欢迎提交：
 
-👉 https://github.com/linuxhobby/xray-v2ray-install/issues/1
+【反馈BUG】👉 https://github.com/linuxhobby/xray-v2ray-install/issues/1
 
 ---
 
