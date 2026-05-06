@@ -1,3 +1,10 @@
+## 📥 一键安装
+
+```bash
+apt update && apt install wget -y
+wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh && chmod +x install.sh && ./install.sh
+```
+---
 # 🚀 Xray 一键安装脚本
 
 > 基于 **Xray + Caddy** 的多协议一键部署脚本，支持 Reality / WS / gRPC / XHTTP / Trojan / VMess 等主流方案
@@ -25,15 +32,7 @@
 
 ---
 
-## 🖥 系统支持
-
-**推荐系统：**
-
-- Debian 12 / 13  
-- Ubuntu 25 / 26  
-
-**已测试系统：**
-
+## 🖥 推荐系统，已测试
 - ✅ Debian 12 / 13  
 - ✅ Ubuntu 25 / 26  
 
@@ -53,16 +52,9 @@
 ### 2️⃣ 域名（可选）
 - 配置 A 记录解析到服务器 IP
 
-📌 VLESS-REALITY 无需域名
+📌 VLESS-REALITY 协议无需域名
 
----
 
-## 📥 一键安装
-
-```bash
-apt update && apt install wget -y
-wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh && chmod +x install.sh && ./install.sh
-```
 
 ---
 
