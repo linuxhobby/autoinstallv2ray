@@ -1,3 +1,14 @@
+## ⚠️ 安装前准备
+
+### 1️⃣ VPS 服务器
+- 一台带公网 IPv4 或 IPv6 的服务器
+
+### 2️⃣ 域名（可选）
+- 配置 A 记录解析到服务器 IP
+
+📌 VLESS-REALITY 协议无需域名
+
+---
 ## 📥 一键安装
 如果没有安装wget，请先安装
 ```
@@ -49,21 +60,6 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ## 🖼 安装成功后信息展示
 <img width="770" height="811" alt="image" src="https://github.com/user-attachments/assets/039947ab-2bdb-40c4-8eb4-6e9fd215ece0" />
-
-
----
-
-## ⚠️ 安装前准备
-
-### 1️⃣ VPS 服务器
-- 一台带公网 IPv4 或 IPv6 的服务器
-
-### 2️⃣ 域名（可选）
-- 配置 A 记录解析到服务器 IP
-
-📌 VLESS-REALITY 协议无需域名
-
-
 
 ---
 
