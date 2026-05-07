@@ -63,7 +63,7 @@ wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/he
 
 ## ❌ 卸载
 
-运行脚本，选择【d】卸载即可
+运行脚本，选择【d】即可卸载。
 
 ---
 
