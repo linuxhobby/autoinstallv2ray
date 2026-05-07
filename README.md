@@ -42,14 +42,13 @@
 apt update && apt install wget curl -y
 ```
 然后执行：
-```bash
-wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
-```
-或
 ```
 curl -Ls https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
 ```
-
+或
+```bash
+wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
+```
 ---
 
 ## 🖼 脚本界面展示
