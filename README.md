@@ -1,9 +1,15 @@
 ## 📥 一键安装
-
-```bash
-apt update && apt install wget -y
-wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh && ./install.sh
+如果没有安装wget，请先安装
 ```
+apt update && apt install wget -y
+```
+然后执行：
+```bash
+wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh \
+&& chmod +x install.sh \
+&& ./install.sh
+```
+
 ---
 # 🚀 Xray 一键安装脚本
 
