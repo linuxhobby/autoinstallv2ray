@@ -1,3 +1,24 @@
+## 📖 项目介绍
+
+本脚本用于快速部署 Xray 服务端，集成 Caddy 自动配置 TLS，支持多种主流协议，开箱即用。
+
+✔ 自动化安装  
+✔ 自动申请 HTTPS 证书  
+✔ 多协议一键切换  
+✔ 极简交互操作  
+
+## ✨ 功能特性
+
+- 一键安装 Xray + Caddy
+- 自动申请 TLS 证书
+- 自动生成配置
+- 自动输出分享链接
+- 多协议支持
+
+## 🖥 推荐系统，已测试
+- ✅ Debian 12 / 13  
+- ✅ Ubuntu 25 / 26  
+---
 ## ⚠️ 安装前准备
 
 ### 1️⃣ VPS 服务器
@@ -38,23 +59,6 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ---
 
-## 📖 项目介绍
-
-本脚本用于快速部署 Xray 服务端，集成 Caddy 自动配置 TLS，支持多种主流协议，开箱即用。
-
-✔ 自动化安装  
-✔ 自动申请 HTTPS 证书  
-✔ 多协议一键切换  
-✔ 极简交互操作  
-
----
-
-## 🖥 推荐系统，已测试
-- ✅ Debian 12 / 13  
-- ✅ Ubuntu 25 / 26  
-
----
-
 ## 🖼 脚本界面展示
 <img width="565" height="558" alt="image" src="https://github.com/user-attachments/assets/e7013d98-f5df-48f6-a484-7d3bd7f16006" />
 
@@ -63,15 +67,6 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ---
 
-## ✨ 功能特性
-
-- 一键安装 Xray + Caddy
-- 自动申请 TLS 证书
-- 自动生成配置
-- 自动输出分享链接
-- 多协议支持
-
----
 
 ## 🔗 支持协议
 
