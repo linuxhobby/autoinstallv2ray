@@ -375,7 +375,71 @@ EOF
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
-# 3.2 VLESS-WS-TLS 协议逻辑完善版
+
+# 3.2 VLESS-REALITY-xhttp 协议逻辑
+gen_vless_reality_xhttp() {
+    echo -e "${Font_Cyan}正在配置 VLESS-REALITY-xhttp...${Font_Suffix}"
+    mkdir -p $conf_dir
+    
+    local xray_bin="/usr/local/bin/xray"
+    [[ ! -f "$xray_bin" ]] && xray_bin=$(command -v xray)
+    
+    if [[ -z "$xray_bin" ]]; then
+        echo -e "${Font_Red}错误: 未检测到 Xray 核心。${Font_Suffix}"
+        return 1
+    fi
+
+    # 变量生成
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local keys=$($xray_bin x25519)
+    local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
+    local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
+    local short_id=$(openssl rand -hex 8)
+    local path=$(openssl rand -hex 6)
+    local dest_server="www.microsoft.com" 
+
+    echo "$pub_key" > ${conf_dir}/pub.key
+
+    # 构建配置文件 (xhttp + reality)
+    cat <<EOF > $config_path
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": 443,
+        "protocol": "vless",
+        "settings": {
+            "clients": [{ "id": "$uuid" }],
+            "decryption": "none"
+        },
+        "streamSettings": {
+            "network": "xhttp",
+            "security": "reality",
+            "xhttpSettings": {
+                "path": "/$path",
+                "mode": "auto"
+            },
+            "realitySettings": {
+                "show": false,
+                "dest": "$dest_server:443",
+                "xver": 0,
+                "serverNames": ["$dest_server"],
+                "privateKey": "$priv_key",
+                "shortIds": ["$short_id"]
+            }
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    systemctl daemon-reload
+    systemctl restart xray
+    
+    # 调用展示函数
+    show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
+}
+
+# 3.3 VLESS-WS-TLS 协议逻辑完善版
 gen_vless_ws() {
     mkdir -p $conf_dir  # 确保目录存在
     check_domain # 检查域名解析是否指向本机[cite: 2]
@@ -425,7 +489,7 @@ EOF
     show_ws_info "$uuid" "$domain" "$path"
 }
 
-# 3.3 VLESS-gRPC-TLS 协议逻辑完善版
+# 3.4 VLESS-gRPC-TLS 协议逻辑完善版
 gen_vless_grpc() {
     mkdir -p $conf_dir  # 确保目录存在
     check_domain # 检查域名解析
@@ -479,7 +543,7 @@ EOF
     show_grpc_info "$uuid" "$domain" "$serviceName"
 }
 
-# 3.4 VLESS-XHTTP-TLS 协议逻辑 - 最终兼容版
+# 3.5 VLESS-XHTTP-TLS 协议逻辑 - 最终兼容版
 gen_vless_xhttp() {
     mkdir -p $conf_dir  # 确保目录存在
     check_domain
@@ -528,7 +592,7 @@ EOF
     show_xhttp_info "$uuid" "$domain" "$path"
 }
 
-# 3.5 Trojan-WS-TLS 协议逻辑优化版
+# 3.6 Trojan-WS-TLS 协议逻辑优化版
 gen_trojan_ws() {
     mkdir -p $conf_dir  # 确保目录存在
     check_domain
@@ -577,7 +641,7 @@ EOF
     show_trojan_info "ws" "$pass" "$domain" "$path"
 }
 
-# 3.6 Trojan-gRPC-TLS 协议逻辑优化版
+# 3.7 Trojan-gRPC-TLS 协议逻辑优化版
 gen_trojan_grpc() {
     mkdir -p $conf_dir  # 确保目录存在
     check_domain
@@ -632,6 +696,7 @@ EOF
 }
 
 #####  2026/05/06，这是新增加的两个协议函数1，gen_vmess_ws
+# 3.8 vmess_ws 协议逻辑优化版
 gen_vmess_ws() {
     mkdir -p $conf_dir
     check_domain  # 复用脚本已有的域名检测逻辑
@@ -686,7 +751,7 @@ EOF
     show_vmess_ws_info
 }
 
-#####  2026/05/06，这是新增加的两个协议函数1，gen_vmess_ws
+# 3.9 vmess_grpc 协议逻辑优化版
 gen_vmess_grpc() {
     mkdir -p $conf_dir
     check_domain
@@ -745,7 +810,9 @@ EOF
 
 #####  2026/05/06，这是新增加的两个协议函数 2，vmess_grpc,结束
 
-# --- 4. 信息展示与统计模块 ---
+
+# ------------------------------------------------ 4. 信息展示与统计模块 ------------------------------------------------
+# --- 4.1 reality_info信息展示与统计模块 ---
 show_reality_info() {
     local uuid=$1
     local pub_key=$2
@@ -774,6 +841,32 @@ show_reality_info() {
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
+# --- 4.2 show_reality_xhttp_info信息展示与统计模块 ---
+show_reality_xhttp_info() {
+    local uuid=$1
+    local pub_key=$2
+    local short_id=$3
+    local sni=$4
+    local path=$5
+    local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
+    local ps_name="VLESS-R-XHTTP_${sni}_$(date +%Y%m%d)"
+    
+    # 构造链接：注意同时包含 reality 关键参数和 xhttp 的 path 参数
+    local link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=xhttp&path=%2F$path#$ps_name"
+
+    echo -e "${Font_Green}VLESS-REALITY-xhttp 安装成功！${Font_Suffix}"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
+    echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
+    echo -e "${Font_Cyan}路径 (Path):${Font_Suffix} /$path"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "$link"
+    show_qr_code "$link"
+    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+}
+
+# --- 4.3 show_ws_info 信息展示与统计模块 ---
 show_ws_info() {
     local uuid=$1
     local domain=$2
@@ -823,6 +916,7 @@ show_grpc_info() {
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
+# --- 4.4 show_xhttp_info 信息展示与统计模块 ---
 show_xhttp_info() {
     local uuid=$1
     local domain=$2
@@ -990,17 +1084,41 @@ main_menu() {
     echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
 
 
-    # 2. 检查当前安装的协议[cite: 1]
+    # 2. 检查当前安装的协议
     if [[ -f $config_path ]]; then
         local current_proto="未知"
+        # 优先判断 REALITY 组合
         if grep -q "realitySettings" $config_path; then
-            current_proto="VLESS-REALITY"
+            if grep -q '"network": "xhttp"' $config_path; then
+                current_proto="VLESS-REALITY-xhttp"
+            elif grep -q "xtls-rprx-vision" $config_path; then
+                current_proto="VLESS-REALITY-Vision"
+            else
+                current_proto="VLESS-REALITY"
+            fi
+        # 判断 Trojan 协议
         elif grep -q '"protocol": "trojan"' $config_path; then
-            if grep -q '"network": "ws"' $config_path; then current_proto="Trojan-WS"; 
-            else current_proto="Trojan-gRPC"; fi
+            if grep -q '"network": "ws"' $config_path; then 
+                current_proto="Trojan-WS-TLS"
+            elif grep -q '"network": "grpc"' $config_path; then 
+                current_proto="Trojan-gRPC-TLS"
+            fi
+        # 判断 VMess 协议
+        elif grep -q '"protocol": "vmess"' $config_path; then
+            if grep -q '"network": "ws"' $config_path; then 
+                current_proto="VMess-WS-TLS"
+            elif grep -q '"network": "grpc"' $config_path; then 
+                current_proto="VMess-gRPC-TLS"
+            fi
+        # 判断 VLESS (带 TLS 证书系列)
         elif grep -q '"protocol": "vless"' $config_path; then
             local net=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
-            current_proto="VLESS-${net^^}" 
+            case "${net,,}" in
+                ws)    current_proto="VLESS-WS-TLS" ;;
+                grpc)  current_proto="VLESS-gRPC-TLS" ;;
+                xhttp) current_proto="VLESS-XHTTP-TLS" ;;
+                *)     current_proto="VLESS-${net^^}" ;;
+            esac
         fi
         echo -e "   当前协议 : ${Font_Green}${current_proto}${Font_Suffix}"
     else
@@ -1032,14 +1150,15 @@ main_menu() {
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
     echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}   ${Font_Red}【推荐，最强隐蔽/不依赖域名】${Font_Suffix}"
-    echo -e "${Font_Blue}  【2】 . 安装 VLESS-WS-TLS${Font_Suffix}           ${Font_Cyan}【CDN兼容/标准WebSocket】${Font_Suffix}"
-    echo -e "${Font_Blue}  【3】 . 安装 VLESS-gRPC-TLS${Font_Suffix}         ${Font_Cyan}【低延迟/多路复用】${Font_Suffix}"
-    echo -e "${Font_Blue}  【4】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}        ${Font_Cyan}【流式传输/防指纹】${Font_Suffix}"
-    echo -e "${Font_Blue}  【5】 . 安装 Trojan-WS-TLS${Font_Suffix}          ${Font_Cyan}【仿HTTPS/老牌稳定】${Font_Suffix}"
-    echo -e "${Font_Blue}  【6】 . 安装 Trojan-gRPC-TLS${Font_Suffix}        ${Font_Cyan}【高效转发/适合游戏】${Font_Suffix}"
-    echo -e "${Font_Blue}  【7】 . 安装 VMess-WS-TLS${Font_Suffix}           ${Font_Yellow}【广泛兼容/传统方案】${Font_Suffix}"
-    echo -e "${Font_Blue}  【8】 . 安装 VMess-gRPC-TLS${Font_Suffix}         ${Font_Yellow}【兼容gRPC新特性】${Font_Suffix}"
-    
+    echo -e "${Font_Blue}  【2】 . 安装 VLESS-REALITY-xhttp${Font_Suffix}    ${Font_Cyan}【最新黑科技/综合最强】${Font_Suffix}"   
+    echo -e "${Font_Blue}  【3】 . 安装 VLESS-WS-TLS${Font_Suffix}           ${Font_Cyan}【CDN兼容/标准WebSocket】${Font_Suffix}"
+    echo -e "${Font_Blue}  【4】 . 安装 VLESS-gRPC-TLS${Font_Suffix}         ${Font_Cyan}【低延迟/多路复用】${Font_Suffix}"
+    echo -e "${Font_Blue}  【5】 . 安装 VLESS-XHTTP-TLS${Font_Suffix}        ${Font_Cyan}【流式传输/防指纹】${Font_Suffix}"
+    echo -e "${Font_Blue}  【6】 . 安装 Trojan-WS-TLS${Font_Suffix}          ${Font_Cyan}【仿HTTPS/老牌稳定】${Font_Suffix}"
+    echo -e "${Font_Blue}  【7】 . 安装 Trojan-gRPC-TLS${Font_Suffix}        ${Font_Cyan}【高效转发/适合游戏】${Font_Suffix}"
+    echo -e "${Font_Blue}  【8】 . 安装 VMess-WS-TLS${Font_Suffix}           ${Font_Yellow}【广泛兼容/传统方案】${Font_Suffix}"
+    echo -e "${Font_Blue}  【9】 . 安装 VMess-gRPC-TLS${Font_Suffix}         ${Font_Yellow}【兼容gRPC新特性】${Font_Suffix}"
+ 
     echo -e "-----------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
@@ -1050,13 +1169,15 @@ main_menu() {
 
     case "$num" in
         1) preparation_stack; gen_vless_reality; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键返回菜单...${Font_Suffix}"; read; exit 0 ;;
-        2) preparation_stack; gen_vless_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        3) preparation_stack; gen_vless_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        4) preparation_stack; gen_vless_xhttp; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        5) preparation_stack; gen_trojan_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        7) preparation_stack; gen_vmess_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        8) preparation_stack; gen_vmess_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        2) preparation_stack; gen_vless_reality_xhttp; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        3) preparation_stack; gen_vless_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        4) preparation_stack; gen_vless_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        5) preparation_stack; gen_vless_xhttp; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        6) preparation_stack; gen_trojan_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        7) preparation_stack; gen_trojan_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        8) preparation_stack; gen_vmess_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        9) preparation_stack; gen_vmess_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+
         d) 
 read -p "确定要彻底卸载并清理环境吗？(y/n): " confirm
 if [[ "$confirm" == "y" ]]; then
