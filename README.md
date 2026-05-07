@@ -47,6 +47,9 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 ## 🖼 脚本界面展示
 <img width="565" height="558" alt="image" src="https://github.com/user-attachments/assets/e7013d98-f5df-48f6-a484-7d3bd7f16006" />
 
+## 🖼 安装成功后信息展示
+<img width="770" height="811" alt="image" src="https://github.com/user-attachments/assets/3c35bd32-ccfe-4583-9718-86dd53e04a36" />
+
 ---
 
 ## ⚠️ 安装前准备
