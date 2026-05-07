@@ -15,7 +15,7 @@
 #   修改功能：
 #   2026/05/01：1、域名检测。2、信息查询功能。3、优化菜单。
 #   2026/05/02：1、增加二维码展示功能。
-#   2026/05/04：1、修复Trojan协议的二维码。2、修复caddy检查安装。
+#   2026/05/05：1、修复Trojan协议的二维码。2、修复caddy检查安装。
 # ====================================================
 
 # 终端颜色定义
@@ -1049,14 +1049,14 @@ main_menu() {
     read -p "请选择: " num
 
     case "$num" in
-        1) preparation_stack; gen_vless_reality; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键返回菜单...${Font_Suffix}"; read; exit 0 ;;
-        2) preparation_stack; gen_vless_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        3) preparation_stack; gen_vless_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        4) preparation_stack; gen_vless_xhttp; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        5) preparation_stack; gen_trojan_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        7) preparation_stack; gen_vmess_ws; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
-        8) preparation_stack; gen_vmess_grpc; echo -e "${Font_Yellow}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        1) preparation_stack; gen_vless_reality; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键返回菜单...${Font_Suffix}"; read; exit 0 ;;
+        2) preparation_stack; gen_vless_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        3) preparation_stack; gen_vless_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        4) preparation_stack; gen_vless_xhttp; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        5) preparation_stack; gen_trojan_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        6) preparation_stack; gen_trojan_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        7) preparation_stack; gen_vmess_ws; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
+        8) preparation_stack; gen_vmess_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键退出...${Font_Suffix}"; read; exit 0 ;;
         d) 
 read -p "确定要彻底卸载并清理环境吗？(y/n): " confirm
 if [[ "$confirm" == "y" ]]; then
