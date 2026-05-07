@@ -76,14 +76,14 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ## 🔗 支持协议
 
-- VLESS-REALITY（推荐）
-- VLESS-WS-TLS
-- VLESS-gRPC-TLS
-- VLESS-XHTTP-TLS
-- Trojan-WS-TLS
-- Trojan-gRPC-TLS
-- VMess-WS-TLS
-- VMess-gRPC-TLS
+- VLESS-REALITY-Vision   【推荐，最强隐蔽/不依赖域名】
+- VLESS-WS-TLS           【CDN兼容/标准WebSocket】
+- VLESS-gRPC-TLS         【低延迟/多路复用】
+- VLESS-XHTTP-TLS        【流式传输/防指纹】
+- Trojan-WS-TLS          【仿HTTPS/老牌稳定】
+- Trojan-gRPC-TLS        【高效转发/适合游戏】
+- VMess-WS-TLS           【广泛兼容/传统方案】
+- VMess-gRPC-TLS         【兼容gRPC新特性】
 
 ---
 
