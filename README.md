@@ -43,9 +43,7 @@ apt update && apt install wget -y
 ```
 然后执行：
 ```bash
-wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh \
-&& chmod +x install.sh \
-&& ./install.sh
+wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
 ```
 
 ---
