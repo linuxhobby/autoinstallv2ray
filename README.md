@@ -7,7 +7,7 @@
 # 🚀 Xray 一键安装脚本
 > 基于 **Xray + Caddy** 的多协议一键部署脚本，快速部署 Xray 服务端，集成 Caddy 自动配置 TLS，支持 Reality / WS / gRPC / XHTTP / Trojan / VMess 等多种主流协议，开箱即用。
 
-✔ 自动化安装  
+✔ 一键自动化安装  
 ✔ 自动申请 HTTPS 证书  
 ✔ 多协议一键切换，再生成新的协议时自动覆盖原先的协议配置  
 ✔ 极简交互操作，Linux知识零基础也无妨  
