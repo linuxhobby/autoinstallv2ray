@@ -17,7 +17,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 
 ---
 
-*最后更新：2026-05-05*
+*最后更新：2026-05-06*
 
 ## 📢 BUG 反馈
 
@@ -45,9 +45,7 @@ wget -O install.sh https://raw.githubusercontent.com/linuxhobby/xray-v2ray-insta
 ---
 
 ## 🖼 脚本界面展示
-<img width="564" height="557" alt="image" src="https://github.com/user-attachments/assets/b05e6b65-0927-4e27-84ff-5818f20bd9ff" />
-
-
+<img width="565" height="558" alt="image" src="https://github.com/user-attachments/assets/e7013d98-f5df-48f6-a484-7d3bd7f16006" />
 
 ---
 
