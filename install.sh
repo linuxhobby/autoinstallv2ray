@@ -1024,7 +1024,7 @@ main_menu() {
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/06   ${Font_Suffix}"
-    echo -e "${Font_Red}   名称：install_xray 一键安装脚本    ${Font_Suffix}"
+    echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.0.05.06.15.21    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
