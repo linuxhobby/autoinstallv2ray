@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ====================================================
-# 作者: linuxhobby
-# 更新：2024/05/01
+# 作者: 人生若只如初见
+# 更新：2024/05/07
 # 支持以下协议矩阵安装
 #  【1】 . 安装 VLESS-REALITY-Vision
 #  【2】 . 安装 VLESS-WS-TLS
@@ -10,6 +10,8 @@
 #  【4】 . 安装 VLESS-XHTTP-TLS
 #  【5】 . 安装 Trojan-WS-TLS
 #  【6】 . 安装 Trojan-gRPC-TLS
+#  【7】 . 安装 VMess-WS-TLS
+#  【8】 . 安装 VMess-gRPC-TLS
 #   修改功能：
 #   2026/05/01：1、域名检测。2、信息查询功能。3、优化菜单。
 #   2026/05/02：1、增加二维码展示功能。
@@ -1023,7 +1025,7 @@ main_menu() {
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===============================================${Font_Suffix}"
-    echo -e "${Font_Red}   作者：linuxhobby，更新：2024/05/06   ${Font_Suffix}"
+    echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/06   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.0.05.06.15.21    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
