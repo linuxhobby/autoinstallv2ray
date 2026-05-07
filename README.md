@@ -37,13 +37,17 @@
 📌 VLESS-REALITY 协议无需域名
 
 ## 📥 一键安装
-如果没有安装wget，请先安装
+如果没有安装wget或curl，请先安装
 ```
-apt update && apt install wget -y
+apt update && apt install wget curl -y
 ```
 然后执行：
 ```bash
 wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
+```
+或
+```
+curl -Ls https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install.sh | bash
 ```
 
 ---
