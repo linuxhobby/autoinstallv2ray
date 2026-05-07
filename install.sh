@@ -3,7 +3,7 @@
 # ====================================================
 # 作者: 人生若只如初见
 # 更新：2024/05/07
-# 支持以下协议矩阵安装
+# 支持以下协议矩阵一键自动安装
 #  【1】 . 安装 VLESS-REALITY-Vision
 #  【2】 . 安装 VLESS-REALITY-xhttp
 #  【3】 . 安装 VLESS-WS-TLS
@@ -697,7 +697,6 @@ EOF
     show_trojan_info "grpc" "$pass" "$domain" "$serviceName"
 }
 
-#####  2026/05/06，这是新增加的两个协议函数1，gen_vmess_ws
 # 3.8 vmess_ws 协议逻辑优化版
 gen_vmess_ws() {
     mkdir -p $conf_dir
@@ -809,10 +808,6 @@ EOF
     # 3. 调用您定义的展示函数
     show_vmess_grpc_info
 }
-
-#####  2026/05/06，这是新增加的两个协议函数 2，vmess_grpc,结束
-
-
 # ------------------------------------------------ 4. 信息展示与统计模块 ------------------------------------------------
 # --- 4.1 reality_info信息展示与统计模块 ---
 show_reality_info() {
@@ -973,8 +968,6 @@ show_trojan_info() {
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
-
-# 2026/05/06，新增的 VMess WS 展示函数
 # 生成二维码函数
 display_config_board() {
     local p_name=$1
@@ -1001,7 +994,6 @@ display_config_board() {
     show_qr_code "$p_link"
 }
 
-# VMess WS 专用展示分发
 # VMess WS 专用展示分发
 show_vmess_ws_info() {
     # 确保变量不为空
