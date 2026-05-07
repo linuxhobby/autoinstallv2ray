@@ -75,9 +75,7 @@ curl -Ls https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/he
 ## 📢 BUG 反馈
 
 如果你发现任何问题，欢迎提交：
-
-👉【反馈BUG】【  https://github.com/linuxhobby/xray-v2ray-install/issues/1 】
-
+👉[反馈BUG](https://github.com/linuxhobby/xray-v2ray-install/issues/1)
 ---
 
 ## ✍️ 作者
