@@ -34,7 +34,7 @@ is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
 #默认域名 A-Record.YourDomain.com
-PRESET_DOMAIN="test.myvpsworld.top" # 如果不想预设，留空即可 ""
+PRESET_DOMAIN="" # 如果不想预设，留空即可 ""
 # --- 版本控制中心 ---
 # 锁定 Xray 内核版本
 XRAY_VERSION="26.3.27"
