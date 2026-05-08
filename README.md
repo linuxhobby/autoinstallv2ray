@@ -85,3 +85,8 @@ wget -O- https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/he
 ## ✍️ 作者
 
 人生若只如初见
+
+测试版链接：
+```
+curl -Ls https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install_test.sh | bash
+```
