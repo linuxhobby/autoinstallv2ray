@@ -40,10 +40,21 @@ is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
 PRESET_DOMAIN="vultr.myvpsworld.top" 
-XRAY_VERSION="26.5.3"
-CADDY_VERSION="2.8.4"
+XRAY_VERSION="26.5.3"   #最新版 latest
+CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
-# ==================== Reality 伪装域名配置 ====================
+
+# ==================== 架构检测 ====================
+ARCH=$(uname -m)
+case ${ARCH} in
+    x86_64)   XRAY_ARCH="64" ;;
+    aarch64)  XRAY_ARCH="arm64" ;;
+    armv7l)   XRAY_ARCH="arm32-v7a" ;;
+    armv8l)   XRAY_ARCH="arm64" ;;
+    *)        echo -e "${Font_Red}不支持的架构: ${ARCH}${Font_Suffix}"; exit 1 ;;
+esac
+
+echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
 # ==================== Reality 伪装域名配置（随机选择） ====================
 REALITY_DEST_OPTIONS=(
     "www.microsoft.com"
@@ -110,7 +121,15 @@ preparation_stack() {
     ufw allow 443/udp
     echo "y" | ufw enable || true
 
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+    # === 时区处理（改为可选，不再强制）===
+    echo -e "${Font_Cyan}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
+    read -r change_tz
+    if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
+        rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+        echo -e "${Font_Green}[OK] 时区已修改为 Asia/Shanghai${Font_Suffix}"
+    else
+        echo -e "${Font_Yellow}已跳过时区修改${Font_Suffix}"
+    fi
 
     echo -e "${Font_Cyan}>>> 安装系统依赖...${Font_Suffix}"
     check_command apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2
@@ -118,6 +137,7 @@ preparation_stack() {
     systemctl enable vnstat --now 2>/dev/null || true
 
     # ==================== Xray 安装 ====================
+    # 安装 Xray（安全方式：先下载再执行）
     if ! command -v xray &> /dev/null || [ ! -f "/etc/systemd/system/xray.service" ]; then
         echo -e "${Font_Cyan}>>> 正在安装 Xray v${XRAY_VERSION}...${Font_Suffix}"
         TMP_SCRIPT=$(mktemp)
