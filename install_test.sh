@@ -40,10 +40,21 @@ is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
 PRESET_DOMAIN="vultr.myvpsworld.top" 
-XRAY_VERSION="26.5.3"
-CADDY_VERSION="2.8.4"
+XRAY_VERSION="26.5.3"   #最新版 latest
+CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
-# ==================== Reality 伪装域名配置 ====================
+
+# ==================== 架构检测 ====================
+ARCH=$(uname -m)
+case ${ARCH} in
+    x86_64)   XRAY_ARCH="64" ;;
+    aarch64)  XRAY_ARCH="arm64" ;;
+    armv7l)   XRAY_ARCH="arm32-v7a" ;;
+    armv8l)   XRAY_ARCH="arm64" ;;
+    *)        echo -e "${Font_Red}不支持的架构: ${ARCH}${Font_Suffix}"; exit 1 ;;
+esac
+
+echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
 # ==================== Reality 伪装域名配置（随机选择） ====================
 REALITY_DEST_OPTIONS=(
     "www.microsoft.com"
@@ -89,7 +100,93 @@ setup_xray_user() {
 common_tls_setup() {
     check_domain
     install_caddy
-    mkdir -p "$conf_dir"
+}
+
+restart_service() {
+    local svc=$1
+
+    systemctl restart "$svc"
+
+    if ! systemctl is-active --quiet "$svc"; then
+        echo -e "${Font_Red}[ERROR] $svc 启动失败${Font_Suffix}"
+        systemctl status "$svc" --no-pager
+        exit 1
+    fi
+}
+
+#JSON 校验函数
+check_json() {
+    local file=$1
+
+    if ! command -v python3 &>/dev/null; then
+        echo -e "${Font_Yellow}[WARN] 未安装 python3，跳过 JSON 校验${Font_Suffix}"
+        return 0
+    fi
+
+    if ! python3 -m json.tool "$file" >/dev/null 2>&1; then
+        echo -e "${Font_Red}[ERROR] config.json 格式错误：$file${Font_Suffix}"
+        python3 -m json.tool "$file" || true
+        exit 1
+    fi
+}
+
+#端口检测函数
+check_port() {
+    local port=$1
+
+    if ss -tulnp 2>/dev/null | grep -q ":$port "; then
+        echo -e "${Font_Red}[ERROR] 端口 $port 已被占用${Font_Suffix}"
+        ss -tulnp | grep ":$port "
+        exit 1
+    fi
+}
+
+#Caddy 配置检查函数
+check_caddy() {
+    if ! command -v caddy &>/dev/null; then
+        echo -e "${Font_Red}[ERROR] Caddy 未安装${Font_Suffix}"
+        exit 1
+    fi
+
+    # 检查配置语法
+    caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${Font_Red}[ERROR] Caddyfile 语法错误${Font_Suffix}"
+        caddy validate --config /etc/caddy/Caddyfile
+        exit 1
+    fi
+}
+#服务端口存活检查函数
+check_service_alive() {
+    local port=$1
+    local name=$2
+
+    # 1. xray 是否运行（必须）
+    if ! systemctl is-active --quiet xray; then
+        echo -e "${Font_Red}[ERROR] xray 未运行${Font_Suffix}"
+        exit 1
+    fi
+
+    # 2. TCP 实际可用性（唯一关键判断）
+    if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+        echo -e "${Font_Red}[ERROR] $name TCP 不可达: $port${Font_Suffix}"
+        exit 1
+    fi
+
+    echo -e "${Font_Green}[OK] $name 服务正常 ($port)${Font_Suffix}"
+}
+
+#TCP检查
+check_external_tcp() {
+    local host=$1
+    local port=$2
+
+    if timeout 3 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
+        echo -e "${Font_Green}[OK] 外网TCP可达：$host:$port${Font_Suffix}"
+    else
+        echo -e "${Font_Red}[ERROR] 外网不可达：$host:$port${Font_Suffix}"
+        exit 1
+    fi
 }
 # ====================================================
 
@@ -97,7 +194,6 @@ common_tls_setup() {
 preparation_stack() {
     check_root
     setup_xray_user
-    
     echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
     apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
     dpkg --configure -a
@@ -110,14 +206,23 @@ preparation_stack() {
     ufw allow 443/udp
     echo "y" | ufw enable || true
 
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+    # === 时区处理（改为可选，不再强制）===
+    echo -e "${Font_Cyan}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
+    read -r change_tz
+    if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
+        rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+        echo -e "${Font_Green}[OK] 时区已修改为 Asia/Shanghai${Font_Suffix}"
+    else
+        echo -e "${Font_Yellow}已跳过时区修改${Font_Suffix}"
+    fi
 
     echo -e "${Font_Cyan}>>> 安装系统依赖...${Font_Suffix}"
-    check_command apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2
+    check_command apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2 dnsutils
 
     systemctl enable vnstat --now 2>/dev/null || true
 
     # ==================== Xray 安装 ====================
+    # 安装 Xray（安全方式：先下载再执行）
     if ! command -v xray &> /dev/null || [ ! -f "/etc/systemd/system/xray.service" ]; then
         echo -e "${Font_Cyan}>>> 正在安装 Xray v${XRAY_VERSION}...${Font_Suffix}"
         TMP_SCRIPT=$(mktemp)
@@ -138,7 +243,8 @@ After=network.target nss-lookup.target
 [Service]
 User=xray
 Group=xray
-ExecStart=/usr/local/bin/xray run -config ${config_path}
+#ExecStart=/usr/local/bin/xray run -config ${config_path}
+ExecStart=/usr/local/bin/xray run -c /usr/local/etc/xray/config.json
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
@@ -200,10 +306,16 @@ check_domain() {
 
         if [[ -z "$domain" ]]; then continue; fi
 
-        local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "无")
-        local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "无")
-        
-        local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
+        #local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "无")
+        #local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "无")       
+        #local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
+        local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "")
+        local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "")
+        local resolved_ips=$(dig +short "$domain" A 2>/dev/null)
+        if [[ -z "$local_ipv4" ]]; then
+            echo -e "${Font_Red}[ERROR] 获取本机 IP 失败${Font_Suffix}"
+            exit 1
+        fi
         
         echo -e "${Font_Cyan}本机 IPv4: $local_ipv4${Font_Suffix}"
         echo -e "${Font_Cyan}本机 IPv6: $local_ipv6${Font_Suffix}"
@@ -291,7 +403,6 @@ check_current_protocol() {
 # ------------------------------------------------ 核心协议模块 ------------------------------------------------
 gen_vless_reality() {
     echo -e "${Font_Cyan}正在配置 VLESS-REALITY-Vision...${Font_Suffix}"
-    mkdir -p "$conf_dir"
     
     local xray_bin="/usr/local/bin/xray"
     [[ ! -f "$xray_bin" ]] && xray_bin=$(command -v xray)
@@ -302,9 +413,20 @@ gen_vless_reality() {
     fi
 
     local uuid=$(cat /proc/sys/kernel/random/uuid)
+    #local keys=$("$xray_bin" x25519)
+    #local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
+    #local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
     local keys=$("$xray_bin" x25519)
-    local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
-    local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
+    if [[ -z "$keys" ]]; then
+        echo -e "${Font_Red}[ERROR] x25519 生成失败${Font_Suffix}"
+        exit 1
+    fi
+    local priv_key=$(echo "$keys" | awk -F': ' '/[Pp]rivate/ {print $2}' | tr -d ' ')
+    local pub_key=$(echo "$keys" | awk -F': ' '/[Pp]ublic/ {print $2}' | tr -d ' ')
+    if [[ -z "$priv_key" || -z "$pub_key" ]]; then
+        echo -e "${Font_Red}[ERROR] Reality key 生成失败${Font_Suffix}"
+        exit 1
+    fi
     
     echo "$pub_key" > "${conf_dir}/pub.key"
     
@@ -339,16 +461,16 @@ gen_vless_reality() {
     "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
-
+    check_json "$config_path"
     systemctl daemon-reload
-    check_command systemctl restart xray
-    
+    restart_service xray
+    check_service_alive 443 "VLESS-REALITY"
+    check_external_tcp "$domain" 443
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
 gen_vless_reality_xhttp() {
     echo -e "${Font_Cyan}正在配置 VLESS-REALITY-xhttp...${Font_Suffix}"
-    mkdir -p "$conf_dir"
     
     local xray_bin="/usr/local/bin/xray"
     [[ ! -f "$xray_bin" ]] && xray_bin=$(command -v xray)
@@ -359,9 +481,20 @@ gen_vless_reality_xhttp() {
     fi
 
     local uuid=$(cat /proc/sys/kernel/random/uuid)
-    local keys=$("$xray_bin" x25519)
+    local keys=$("$xray_bin" x25519)   
+    if [[ -z "$keys" ]]; then
+        echo -e "${Font_Red}[ERROR] x25519 生成失败${Font_Suffix}"
+        exit 1
+    fi
+    
     local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
     local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
+    
+    if [[ -z "$priv_key" || -z "$pub_key" ]]; then
+        echo -e "${Font_Red}[ERROR] key 解析失败${Font_Suffix}"
+        exit 1
+    fi
+        
     local short_id=$(openssl rand -hex 8)
     local path=$(openssl rand -hex 6)
     local dest_server=$(get_random_dest)
@@ -399,10 +532,11 @@ gen_vless_reality_xhttp() {
     "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
-
+    check_json "$config_path"
     systemctl daemon-reload
-    check_command systemctl restart xray
-    
+    restart_service xray
+    check_service_alive 443 "VLESS-REALITY"
+    check_external_tcp "$domain" 443      
     show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
 }
 
@@ -412,6 +546,7 @@ gen_vless_ws() {
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
     local port=10001
+    check_port $port
 
     echo -e "${Font_Cyan}正在配置 VLESS-WS-TLS (Caddy 反代)...${Font_Suffix}"
 
@@ -442,9 +577,11 @@ EOF
     reverse_proxy /$path 127.0.0.1:$port
 }" > /etc/caddy/Caddyfile
 
-    check_command systemctl restart caddy
-    check_command systemctl restart $is_core
-    
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    check_service_alive $port "VLESS-WS"    
     show_ws_info "$uuid" "$domain" "$path"
 }
 
@@ -453,6 +590,7 @@ gen_vless_grpc() {
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local serviceName=$(openssl rand -hex 4)
     local port=10002
+    check_port $port
 
     echo -e "${Font_Cyan}正在配置 VLESS-gRPC-TLS...${Font_Suffix}"
 
@@ -486,10 +624,12 @@ EOF
         }
     }
 }" > /etc/caddy/Caddyfile
-
-    check_command systemctl restart caddy
-    check_command systemctl restart $is_core
-    
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    check_service_alive $port "VLESS-gRPC"
+    check_external_tcp "$domain" 443    
     show_grpc_info "$uuid" "$domain" "$serviceName"
 }
 
@@ -498,6 +638,7 @@ gen_vless_xhttp() {
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
     local port=10003
+    check_port $port
 
     echo -e "${Font_Cyan}正在配置 VLESS-XHTTP-TLS...${Font_Suffix}"
 
@@ -529,10 +670,12 @@ EOF
     }
     reverse_proxy 127.0.0.1:$port
 }" > /etc/caddy/Caddyfile
-
-    check_command systemctl restart caddy
-    check_command systemctl restart $is_core
-    
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    check_service_alive $port "VLESS-XHTTP"
+    check_external_tcp "$domain" 443        
     show_xhttp_info "$uuid" "$domain" "$path"
 }
 
@@ -543,6 +686,7 @@ gen_trojan_ws() {
     
     local path=$(openssl rand -hex 6)
     local port=10004
+    check_port $port
 
     cat <<EOF > "$config_path"
 {
@@ -569,10 +713,12 @@ EOF
     }
     reverse_proxy /$path localhost:$port
 }" > /etc/caddy/Caddyfile
-
-    check_command systemctl restart caddy
-    check_command systemctl restart $is_core
-    
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    check_service_alive $port "Trojan-WS"
+    check_external_tcp "$domain" 443       
     show_trojan_info "ws" "$pass" "$domain" "$path"
 }
 
@@ -583,6 +729,7 @@ gen_trojan_grpc() {
     
     local serviceName=$(openssl rand -hex 4)
     local port=10005
+    check_port $port
 
     echo -e "${Font_Cyan}正在配置 Trojan-gRPC-TLS...${Font_Suffix}"
 
@@ -615,10 +762,12 @@ EOF
         }
     }
 }" > /etc/caddy/Caddyfile
-
-    check_command systemctl restart caddy
-    check_command systemctl restart $is_core
-    
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    check_service_alive $port "Trojan-gRPC"
+    check_external_tcp "$domain" 443      
     show_trojan_info "grpc" "$pass" "$domain" "$serviceName"
 }
 
@@ -627,6 +776,7 @@ gen_vmess_ws() {
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
     local port=10001
+    check_port $port
     
     UUID=$uuid
     WPATH=$path
@@ -661,8 +811,12 @@ $DOMAIN {
     reverse_proxy /$WPATH 127.0.0.1:$port
 }
 EOF
-
-    check_command systemctl restart xray caddy
+    check_caddy
+    check_json "$config_path"
+    restart_service xray
+    restart_service caddy
+    check_service_alive $port "VMess-WS"
+    check_external_tcp "$domain" 443      
     show_vmess_ws_info
 }
 
@@ -671,7 +825,7 @@ gen_vmess_grpc() {
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local serviceName=$(openssl rand -hex 6)
     local port=10002
-    
+    check_port $port
     UUID=$uuid
     WPATH=$serviceName
     DOMAIN=$domain
@@ -709,8 +863,12 @@ $DOMAIN {
     }
 }
 EOF
-
-    check_command systemctl restart xray caddy
+    check_caddy
+    check_json "$config_path"
+    restart_service xray
+    restart_service caddy
+    check_service_alive $port "VMess-gRPC"
+    check_external_tcp "$domain" 443
     show_vmess_grpc_info
 }
 
