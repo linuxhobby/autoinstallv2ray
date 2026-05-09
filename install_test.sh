@@ -39,7 +39,7 @@ Font_Suffix="\033[0m"   # 重置颜色/颜色结尾
 is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-PRESET_DOMAIN="vultr.myvpsworld.top" 
+PRESET_DOMAIN="vc.myvpsworld.top" 
 XRAY_VERSION="26.5.3"   #最新版 latest
 CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
@@ -98,15 +98,12 @@ setup_xray_user() {
 
 # TLS 类协议公共准备（减少少量重复）
 common_tls_setup() {
-    check_domain
     install_caddy
 }
 
 restart_service() {
     local svc=$1
-
     systemctl restart "$svc"
-
     if ! systemctl is-active --quiet "$svc"; then
         echo -e "${Font_Red}[ERROR] $svc 启动失败${Font_Suffix}"
         systemctl status "$svc" --no-pager
@@ -188,6 +185,29 @@ check_external_tcp() {
         exit 1
     fi
 }
+
+# 依赖检查函数
+check_dependencies() {
+    echo -e "${Font_Cyan}>>> 检查系统依赖...${Font_Suffix}"
+    local deps=(curl openssl wget qrencode host base64 socat tar unzip vnstat gnupg2 dnsutils)
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            apt-get install -y "$dep" -qq
+        fi
+    done
+}
+
+# 强制开启防火墙函数
+enable_firewall() {
+    echo -e "${Font_Cyan}>>> 配置安全防火墙...${Font_Suffix}"
+    apt-get install -y ufw -qq
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 443/udp
+    # 使用 --force 避免交互，直接开启
+    ufw --force enable
+}
 # ====================================================
 
 # --- 1. 环境准备模块 ---
@@ -198,16 +218,8 @@ preparation_stack() {
     apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
     dpkg --configure -a
 
-    echo -e "${Font_Cyan}>>> 配置防火墙...${Font_Suffix}"
-    check_command apt-get install -y ufw
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
-    ufw allow 443/udp
-    echo "y" | ufw enable || true
-
     # === 时区处理（改为可选，不再强制）===
-    echo -e "${Font_Cyan}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
+    echo -e "${Font_Red}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
     read -r change_tz
     if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
         rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
@@ -216,8 +228,11 @@ preparation_stack() {
         echo -e "${Font_Yellow}已跳过时区修改${Font_Suffix}"
     fi
 
-    echo -e "${Font_Cyan}>>> 安装系统依赖...${Font_Suffix}"
-    check_command apt-get install -y wget curl socat tar unzip vnstat qrencode gnupg2 dnsutils
+    # 调用优化后的防火墙函数
+    enable_firewall
+
+    # 调用优化后的依赖检查
+    check_dependencies
 
     systemctl enable vnstat --now 2>/dev/null || true
 
@@ -227,10 +242,20 @@ preparation_stack() {
         echo -e "${Font_Cyan}>>> 正在安装 Xray v${XRAY_VERSION}...${Font_Suffix}"
         TMP_SCRIPT=$(mktemp)
         check_command curl -fsSL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh -o "$TMP_SCRIPT"
+        
+        # -------------------------------------------------------
+        # 关键点：设置此变量后，官方脚本将只安装文件，不再报错启动
+        export XRAY_INSTALL_SKIP_START=1 
+        # -------------------------------------------------------
+
         check_command bash "$TMP_SCRIPT" install --version ${XRAY_VERSION}
         rm -f "$TMP_SCRIPT"
         check_command ln -sf /usr/local/bin/xray /usr/bin/xray
-        echo -e "${Font_Green}[OK] Xray v${XRAY_VERSION} 安装完成${Font_Suffix}"
+        
+        # 仅开启自启，不触发启动命令
+        systemctl enable xray >/dev/null 2>&1 || true
+        
+        echo -e "${Font_Green}[OK] Xray v${XRAY_VERSION} 安装完成（已屏蔽无效启动告警）${Font_Suffix}"
     fi
 
     # 创建 systemd 服务（仅创建，不启动）
@@ -243,8 +268,7 @@ After=network.target nss-lookup.target
 [Service]
 User=xray
 Group=xray
-#ExecStart=/usr/local/bin/xray run -config ${config_path}
-ExecStart=/usr/local/bin/xray run -c /usr/local/etc/xray/config.json
+ExecStart=/usr/local/bin/xray run -config ${config_path}
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
@@ -296,6 +320,7 @@ install_caddy() {
 
 # --- 域名解析检测（完全保留）---
 check_domain() {
+    local domain=""
     while true; do
         if [[ -n "$PRESET_DOMAIN" ]]; then
             read -p "请输入您的解析域名后回车 [默认域名: $PRESET_DOMAIN]: " domain
@@ -335,6 +360,8 @@ check_domain() {
 
         if [[ $pass -eq 1 ]]; then
             echo -e "${Font_Green}检测通过：域名已正确解析到本机 IP。${Font_Suffix}"
+            echo "$domain" > /tmp/domain
+            export domain
             break
         else
             echo -e "${Font_Red}错误: 域名解析地址与本机 IP 不符！${Font_Suffix}"
@@ -465,7 +492,7 @@ EOF
     systemctl daemon-reload
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
-    check_external_tcp "$domain" 443
+    check_external_tcp "$(curl -4 -s ip.sb || true)" 443
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
@@ -536,12 +563,20 @@ EOF
     systemctl daemon-reload
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
-    check_external_tcp "$domain" 443      
+    check_external_tcp "$(curl -4 -s ip.sb || true)" 443      
     show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
 }
 
 # TLS 协议使用 common_tls_setup
 gen_vless_ws() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
+    
     common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
@@ -581,11 +616,21 @@ EOF
     check_json "$config_path"
     restart_service caddy
     restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
     check_service_alive $port "VLESS-WS"    
     show_ws_info "$uuid" "$domain" "$path"
 }
 
 gen_vless_grpc() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
+    
     common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local serviceName=$(openssl rand -hex 4)
@@ -628,12 +673,21 @@ EOF
     check_json "$config_path"
     restart_service caddy
     restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
     check_service_alive $port "VLESS-gRPC"
     check_external_tcp "$domain" 443    
     show_grpc_info "$uuid" "$domain" "$serviceName"
 }
 
 gen_vless_xhttp() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy    
     common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
@@ -674,13 +728,27 @@ EOF
     check_json "$config_path"
     restart_service caddy
     restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
     check_service_alive $port "VLESS-XHTTP"
     check_external_tcp "$domain" 443        
     show_xhttp_info "$uuid" "$domain" "$path"
 }
 
 gen_trojan_ws() {
+    check_domain
+    # 确保从临时文件读取域名，并定义为局部变量
+    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
+    [[ -z "$domain" ]] && {
+        echo -e "${Font_Red}[ERROR] domain 为空，请检查域名配置${Font_Suffix}"
+        exit 1
+    }
+    
+    install_caddy
     common_tls_setup
+    
+    # 密码处理
+    local pass
     read -p "请输入 Trojan 密码 (默认随机): " pass
     [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
     
@@ -688,6 +756,7 @@ gen_trojan_ws() {
     local port=10004
     check_port $port
 
+    # 生成 Xray 配置
     cat <<EOF > "$config_path"
 {
     "log": { "loglevel": "warning" },
@@ -707,23 +776,42 @@ gen_trojan_ws() {
 }
 EOF
 
+    # 生成 Caddy 配置
     echo "$domain {
     tls {
         protocols tls1.2 tls1.3
     }
     reverse_proxy /$path localhost:$port
 }" > /etc/caddy/Caddyfile
+
+    # 校验与重启
     check_caddy
     check_json "$config_path"
     restart_service caddy
-    restart_service $is_core
+    restart_service "$is_core"  # 确保 is_core 变量已定义，通常是 xray
+    
+    echo -e "${Font_Cyan}请稍等，验证服务状态中...${Font_Suffix}"
+    sleep 2
     check_service_alive $port "Trojan-WS"
     check_external_tcp "$domain" 443       
+    
+    # 调用展示函数：传入所有必要参数
     show_trojan_info "ws" "$pass" "$domain" "$path"
 }
 
 gen_trojan_grpc() {
+    check_domain
+    # 显式获取域名，防止严格模式报错
+    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
+    [[ -z "$domain" ]] && {
+        echo -e "${Font_Red}[ERROR] domain 为空，请检查域名配置${Font_Suffix}"
+        exit 1
+    }
+    
+    install_caddy 
     common_tls_setup
+    
+    local pass
     read -p "请输入 Trojan 密码 (默认随机): " pass
     [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
     
@@ -733,6 +821,7 @@ gen_trojan_grpc() {
 
     echo -e "${Font_Cyan}正在配置 Trojan-gRPC-TLS...${Font_Suffix}"
 
+    # 生成 Xray 配置
     cat <<EOF > "$config_path"
 {
     "log": { "loglevel": "warning" },
@@ -752,6 +841,7 @@ gen_trojan_grpc() {
 }
 EOF
 
+    # 生成 Caddy 配置 (注意：gRPC 需要 h2c 模式)
     echo "$domain {
     tls {
         protocols tls1.2 tls1.3
@@ -762,16 +852,31 @@ EOF
         }
     }
 }" > /etc/caddy/Caddyfile
+
     check_caddy
     check_json "$config_path"
+    
+    # 启动服务
     restart_service caddy
-    restart_service $is_core
+    restart_service "$is_core"
+    
+    echo -e "${Font_Cyan}请稍等，验证服务状态中...${Font_Suffix}"
+    sleep 2
     check_service_alive $port "Trojan-gRPC"
     check_external_tcp "$domain" 443      
+    
+    # 【核心修改】显式传参给信息展示函数
     show_trojan_info "grpc" "$pass" "$domain" "$serviceName"
 }
 
 gen_vmess_ws() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
     common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
@@ -821,6 +926,13 @@ EOF
 }
 
 gen_vmess_grpc() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
     common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local serviceName=$(openssl rand -hex 6)
@@ -967,29 +1079,35 @@ show_xhttp_info() {
 }
 
 show_trojan_info() {
-    local type=$1 pass=$2 host=$3 param=$4
-    local ps_name="${host}_$(date +%Y%m%d)"
-    local link
+    local type=$1
+    local pass=$2
+    local dom=$3
+    local path_or_service=$4
+    local link=""
+
     if [[ "$type" == "ws" ]]; then
-        link="trojan://$pass@$host:443?security=tls&type=ws&sni=$host&path=%2F$param#$ps_name"
-    else
-        link="trojan://$pass@$host:443?security=tls&type=grpc&sni=$host&serviceName=$param#$ps_name"
+        # 拼接 Trojan-WS 链接
+        link="trojan://${pass}@${dom}:443?security=tls&type=ws&sni=${dom}&path=%2f${path_or_service}#Trojan_WS_${dom}"
+    elif [[ "$type" == "grpc" ]]; then
+        # 拼接 Trojan-gRPC 链接
+        link="trojan://${pass}@${dom}:443?security=tls&encryption=none&type=grpc&serviceName=${path_or_service}&sni=${dom}#Trojan_gRPC_${dom}"
     fi
 
-    echo -e "${Font_Green}Trojan-$type 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Cyan}密码:${Font_Suffix} $pass"
-    echo -e "${Font_Cyan}域名:${Font_Suffix} $host"
-    echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    if [[ "$type" == "ws" ]]; then
-        echo -e "${Font_Cyan}路径:${Font_Suffix} /$param"
-    else
-        echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $param"
-    fi
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "\n${Font_Green}---------- Trojan 配置信息 ----------${Font_Suffix}"
+    echo -e "${Font_Cyan}协议类型    :${Font_Suffix} Trojan-${type}"
+    echo -e "${Font_Cyan}地址 (Address):${Font_Suffix} ${dom}"
+    echo -e "${Font_Cyan}端口 (Port)   :${Font_Suffix} 443"
+    echo -e "${Font_Cyan}密码 (Password):${Font_Suffix} ${pass}"
+    echo -e "${Font_Cyan}传输协议 (Net):${Font_Suffix} ${type}"
+    echo -e "${Font_Cyan}路径/服务名   :${Font_Suffix} ${path_or_service}"
+    echo -e "${Font_Cyan}TLS/SNI       :${Font_Suffix} ${dom}"
+    echo -e "${Font_Green}-------------------------------------${Font_Suffix}"
+    echo -e "${Font_Cyan}分享链接:${Font_Suffix}"
+    echo -e "${Font_Yellow}${link}${Font_Suffix}"
+    echo -e "${Font_Green}-------------------------------------${Font_Suffix}\n"
+
+    # 如果有二维码展示函数，取消下面注释
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 # VMess 展示函数（完全保留）
@@ -1191,9 +1309,9 @@ main_menu() {
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===============================================${Font_Suffix}"
-    echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/08   ${Font_Suffix}"
+    echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/09   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.08.10.41    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.09.12.32    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
