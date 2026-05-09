@@ -19,6 +19,7 @@
 #   2026/05/05：1、修复Trojan协议的二维码。2、修复caddy检查安装。
 #   2026/05/07：1、增加VLESS-REALITY-xhttp协议。2、修复当前协议判断，更详细。
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
+#   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
 # ====================================================
 # ==================== 严格模式 + 错误追踪 ====================
 set -euo pipefail
@@ -39,7 +40,7 @@ Font_Suffix="\033[0m"   # 重置颜色/颜色结尾
 is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-PRESET_DOMAIN="vc.myvpsworld.top" 
+PRESET_DOMAIN="" 
 XRAY_VERSION="26.5.3"   #最新版 latest
 CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
