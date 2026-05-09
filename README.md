@@ -52,7 +52,8 @@ apt update && apt install wget curl -y
 然后执行：
 ```
 wget -N https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/main/install.sh
-bash -x install.sh
+chmod +x install.sh
+./install.sh
 ```
 ---
 
