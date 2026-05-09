@@ -424,7 +424,7 @@ check_current_protocol() {
         echo -e "${Font_Red}未能识别协议类型。${Font_Suffix}"
     fi
     
-    echo -e "${Font_Yellow}-----------------------------------------------${Font_Suffix}"
+    echo -e "${Font_Yellow}-----------------------------------------------------${Font_Suffix}"
     read -p "按回车键返回主菜单"
 }
 
@@ -996,15 +996,15 @@ show_reality_info() {
     local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
 
     echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
 }
 
 show_reality_xhttp_info() {
@@ -1014,15 +1014,15 @@ show_reality_xhttp_info() {
     local link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=xhttp&path=%2F$path#$ps_name"
 
     echo -e "${Font_Green}VLESS-REALITY-xhttp 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}路径 (Path):${Font_Suffix} /$path"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
 }
 
 show_ws_info() {
@@ -1031,16 +1031,16 @@ show_ws_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=ws&host=$domain&path=%2F$path#$ps_name"
 
     echo -e "${Font_Green}VLESS-WS-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
 }
 
 show_grpc_info() {
@@ -1049,16 +1049,16 @@ show_grpc_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=grpc&serviceName=$serviceName&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-gRPC-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $serviceName"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
 }
 
 show_xhttp_info() {
@@ -1067,16 +1067,16 @@ show_xhttp_info() {
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=xhttp&path=%2F$path&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-XHTTP-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}模式:${Font_Suffix} auto (建议客户端手动选 auto)"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
 }
 
 show_trojan_info() {
@@ -1234,7 +1234,7 @@ uninstall_all() {
 # --- 主菜单（保留原样，仅加强调用）---
 main_menu() {
     clear
-    echo -e "${Font_Magenta}================= 系统状态检查 ================${Font_Suffix}"
+    echo -e "${Font_Magenta}==================== 系统状态检查 ===================${Font_Suffix}"
     
     local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
     echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
@@ -1309,13 +1309,13 @@ main_menu() {
     
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
-    echo -e "${Font_Red}===============================================${Font_Suffix}"
+    echo -e "${Font_Red}=====================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/09   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.0.05.09.12.32    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
-    echo -e "-----------------------------------------------"
+    echo -e "-----------------------------------------------------"
     echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}   ${Font_Red}【推荐，最强隐蔽/不依赖域名】${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-REALITY-xhttp${Font_Suffix}    ${Font_Cyan}【最新黑科技/综合最强】${Font_Suffix}"   
     echo -e "${Font_Blue}  【3】 . 安装 VLESS-WS-TLS${Font_Suffix}           ${Font_Cyan}【CDN兼容/标准WebSocket】${Font_Suffix}"
@@ -1326,12 +1326,12 @@ main_menu() {
     echo -e "${Font_Blue}  【8】 . 安装 VMess-WS-TLS${Font_Suffix}           ${Font_Yellow}【广泛兼容/传统方案】${Font_Suffix}"
     echo -e "${Font_Blue}  【9】 . 安装 VMess-gRPC-TLS${Font_Suffix}         ${Font_Yellow}【兼容gRPC新特性】${Font_Suffix}"
   
-    echo -e "-----------------------------------------------"
+    echo -e "-----------------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
     echo -e "${Font_Green}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
-    echo -e "-----------------------------------------------"
+    echo -e "-----------------------------------------------------"
     read -p "请选择: " num
 
     case "$num" in
