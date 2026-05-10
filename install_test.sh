@@ -3,6 +3,7 @@
 # ====================================================
 # 作者: 人生若只如初见
 # 更新：2024/05/10
+# Release、Standard、Snapshot、Staging
 # 支持以下协议矩阵一键自动安装
 #  【1】 . 安装 VLESS-REALITY-Vision
 #  【2】 . 安装 VLESS-REALITY-xhttp
@@ -20,6 +21,7 @@
 #   2026/05/07：1、增加VLESS-REALITY-xhttp协议。2、修复当前协议判断，更详细。
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
 #   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
+
 # ====================================================
 # 终端颜色定义
 Font_Black="\033[30m"   # 黑色
@@ -1393,7 +1395,7 @@ main_menu() {
     echo -e "${Font_Red}===========================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.17.31    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.18.18（release）    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------------------"
