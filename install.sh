@@ -68,7 +68,6 @@ REALITY_DEST_OPTIONS=(
     "www.apple.com"
     "www.amazon.com"
     "www.cloudflare.com"
-    "login.microsoftonline.com"
     "www.bing.com"
     "account.microsoft.com"
 )
