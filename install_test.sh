@@ -20,6 +20,7 @@
 #   2026/05/07：1、增加VLESS-REALITY-xhttp协议。2、修复当前协议判断，更详细。
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
 #   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
+#   2026/05/10：优化代码，增加安装过程中可能出现的错误提示。
 # ====================================================
 
 # 终端颜色定义
@@ -56,7 +57,7 @@ REALITY_DEST_OPTIONS=(
     "www.bing.com"
     "account.microsoft.com"
 )
-# ==================== 自定义函数区域 ====================
+# ==================== 自定义函数区域 start====================
 # 自定义函数：架构检测
 ARCH=$(uname -m)
 case ${ARCH} in
@@ -235,33 +236,137 @@ check_dependencies() {
     done
 }
 
-# 强制开启防火墙函数
-enable_firewall() {
-    echo -e "${Font_Cyan}>>> 配置安全防火墙...${Font_Suffix}"
-    apt-get install -y ufw -qq
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
-    ufw allow 443/udp
-    # 使用 --force 避免交互，直接开启
-    ufw --force enable
-}
-# ====================================================
+# 自定义函数：智能防火墙策略
+enable_firewall_safe() {
+    echo -e "${Font_Cyan}>>> 正在配置智能防火墙策略...${Font_Suffix}"
+    
+    if ! command -v ufw &>/dev/null; then
+        apt-get install -y ufw -qq
+    fi
 
+    # 1. 动态检测当前 SSH 端口
+    local current_ssh_port
+    current_ssh_port=$(ss -tlnp | grep sshd | awk '{print $4}' | awk -F: '{print $NF}' | sort -u | head -n1)
+    [[ -z "$current_ssh_port" ]] && current_ssh_port=$(grep -i "^Port" /etc/ssh/sshd_config | awk '{print $2}')
+    current_ssh_port=${current_ssh_port:-22}
+
+    echo -e "${Font_Yellow}检测到当前 SSH 端口为: ${Font_Magenta}${current_ssh_port}${Font_Suffix}"
+    echo -e "${Font_Yellow}计划放行端口: ${current_ssh_port}(SSH), 80(HTTP), 443(HTTPS-TCP/UDP)${Font_Suffix}"
+    
+    # 2. 设置策略
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow "$current_ssh_port"/tcp comment 'SSH Port'
+    ufw allow 80/tcp comment 'HTTP'
+    ufw allow 443/tcp comment 'HTTPS-TCP'
+    ufw allow 443/udp comment 'HTTPS-UDP'
+
+    # 3. 强制开启
+    ufw --force enable
+    echo -e "${Font_Green}[OK] 防火墙已安全开启，SSH 端口 ${current_ssh_port} 已锁定放行。${Font_Suffix}"
+}
+
+# 自定义函数：多源鲁棒 IP 获取
+get_public_ip() {
+    local ip=""
+    # 依次尝试多个可靠的公网 IP API
+    local apis=(
+        "https://api64.ipify.org"
+        "https://icanhazip.com"
+        "https://ifconfig.me"
+        "https://ip.sb"
+    )
+
+    for api in "${apis[@]}"; do
+        # 设置 5 秒超时，确保不会长时间卡死
+        ip=$(curl -4 -s --connect-timeout 5 "$api" | tr -d '\n' | grep -oP '\d+(\.\d+){3}' || true)
+        if [[ -n "$ip" ]]; then
+            echo "$ip"
+            return 0
+        fi
+    done
+
+    echo -e "${Font_Red}[ERROR] 无法获取公网 IPv4 地址，请检查网络连接。${Font_Suffix}" >&2
+    return 1
+}
+
+# 自定义函数：获取随机浏览器指纹
+get_random_fp() {
+    local fp_options=("chrome" "firefox" "edge" "safari" "360" "qq")
+    echo "${fp_options[$((RANDOM % ${#fp_options[@]}))]}"
+}
+
+# 自定义函数：强制释放 apt 资源锁
+# 优化版：安全释放 apt 资源锁
+release_apt_lock() {
+    echo -e "${Font_Cyan}>>> 正在安全检查 apt 资源状态...${Font_Suffix}"
+    
+    # 1. 礼貌地停止后台自动更新服务，避免冲突
+    # 这些服务是导致抢锁的根本原因，停止它们是合规操作
+    local services=("apt-daily.service" "apt-daily-upgrade.service" "unattended-upgrades.service")
+    for svc in "${services[@]}"; do
+        if systemctl is-active --quiet "$svc"; then
+            echo -e "${Font_Yellow}停止后台更新服务: $svc...${Font_Suffix}"
+            systemctl stop "$svc" 2>/dev/null || true
+        fi
+    done
+
+    # 2. 智能等待：如果锁被占用，最多等待 30 秒，而不是直接杀死进程
+    local lock_files=("/var/lib/dpkg/lock-frontend" "/var/lib/apt/lists/lock" "/var/lib/dpkg/lock")
+    local timeout=30
+    local elapsed=0
+    
+    while [ $elapsed -lt $timeout ]; do
+        local locked=false
+        for lfile in "${lock_files[@]}"; do
+            if fuser "$lfile" >/dev/null 2>&1; then
+                locked=true
+                break
+            fi
+        done
+        
+        if [ "$locked" = false ]; then
+            break
+        fi
+        
+        echo -e "${Font_Yellow}系统正在进行资源同步，请稍候... (${elapsed}s/30s)${Font_Suffix}"
+        sleep 2
+        ((elapsed+=2))
+    done
+
+    # 3. 最终确认：如果 30 秒后依然锁死，说明可能是之前的任务崩溃残留的“死锁”
+    # 此时只针对“无进程占用但锁文件存在”的情况进行处理
+    for lfile in "${lock_files[@]}"; do
+        if [ -f "$lfile" ] && ! fuser "$lfile" >/dev/null 2>&1; then
+            echo -e "${Font_Yellow}清理残留死锁文件: $lfile${Font_Suffix}"
+            apt-get clean
+            rm -f "$lfile"
+        fi
+    done
+    
+    # 4. 自动修复：尝试修复可能因断电或强制中断导致的包管理状态异常
+    # 这是 Debian 官方推荐的修复命令，非常安全
+    dpkg --configure -a 2>/dev/null || true
+    
+    echo -e "${Font_Green}[OK] 资源检查完毕，系统已就绪。${Font_Suffix}"
+}
+# ==================== 自定义函数区域 end====================
+
+# ==================== 环境准备模块 start====================
 # --- 1. 环境准备模块 ---
 preparation_stack() {
     check_root
     setup_xray_user
+
+    # 首先确保 apt 锁已释放
+    release_apt_lock 
+    echo -e "${Font_Cyan}>>> 正在进行系统初始化及依赖安装...${Font_Suffix}"
+
     # === 时区处理 ===
     fix_timezone
-
-    # 处理apt锁问题    
-    echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
-    apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
-    dpkg --configure -a
-
+    
     # 调用优化后的防火墙函数
-    enable_firewall
+    enable_firewall_safe
 
     # 调用优化后的依赖检查
     check_dependencies
@@ -331,8 +436,8 @@ install_caddy() {
         
         rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
 
-        check_command curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        check_command curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
         
         check_command apt-get update -qq
         check_command apt-get install caddy=${CADDY_VERSION} -y || check_command apt-get install caddy -y
@@ -363,10 +468,8 @@ check_domain() {
 
         if [[ -z "$domain" ]]; then continue; fi
 
-        #local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "无")
-        #local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "无")       
-        #local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
-        local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "")
+        #local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "")
+        local local_ipv4=$(get_public_ip || echo "")
         local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "")
         local resolved_ips=$(dig +short "$domain" A 2>/dev/null)
         if [[ -z "$local_ipv4" ]]; then
@@ -417,7 +520,8 @@ check_current_protocol() {
     local uuid=$(grep -m1 '"id":' $config_path | grep -oP '(?<="id": ")[^"]+' || grep -m1 '"password":' $config_path | grep -oP '(?<="password": ")[^"]+')
     local network=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
     
-    local ip=$(curl -4 -s --connect-timeout 5 ip.sb || curl -s http://ipv4.icanhazip.com)
+    #local ip=$(curl -4 -s --connect-timeout 5 ip.sb || curl -s http://ipv4.icanhazip.com)
+    local ip=$(get_public_ip || echo "获取失败")
     local domain=""
     if [[ -f "/etc/caddy/Caddyfile" ]]; then
         domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ')
@@ -459,7 +563,7 @@ check_current_protocol() {
     read -p "按回车键返回主菜单"
 }
 
-# ------------------------------------------------ 核心协议模块 ------------------------------------------------
+# --------------- 核心协议模块 start ---------------
 gen_vless_reality() {
     echo -e "${Font_Cyan}正在配置 VLESS-REALITY-Vision...${Font_Suffix}"
     
@@ -472,9 +576,6 @@ gen_vless_reality() {
     fi
 
     local uuid=$(cat /proc/sys/kernel/random/uuid)
-    #local keys=$("$xray_bin" x25519)
-    #local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
-    #local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
     local keys=$("$xray_bin" x25519)
     if [[ -z "$keys" ]]; then
         echo -e "${Font_Red}[ERROR] x25519 生成失败${Font_Suffix}"
@@ -482,17 +583,16 @@ gen_vless_reality() {
     fi
     local priv_key=$(echo "$keys" | awk -F': ' '/[Pp]rivate/ {print $2}' | tr -d ' ')
     local pub_key=$(echo "$keys" | awk -F': ' '/[Pp]ublic/ {print $2}' | tr -d ' ')
-    if [[ -z "$priv_key" || -z "$pub_key" ]]; then
-        echo -e "${Font_Red}[ERROR] Reality key 生成失败${Font_Suffix}"
-        exit 1
-    fi
     
     echo "$pub_key" > "${conf_dir}/pub.key"
     
     local dest_server=$(get_random_dest)
     local short_id=$(openssl rand -hex 8)
+    local ip=$(get_public_ip || echo "0.0.0.0")
+    local random_fp=$(get_random_fp)
 
     echo -e "${Font_Cyan}本次 Reality 伪装站点：${Font_Green}$dest_server${Font_Suffix}"
+    echo -e "${Font_Cyan}本次使用浏览器指纹：${Font_Green}$random_fp${Font_Suffix}"
 
     cat <<EOF > "$config_path"
 {
@@ -524,8 +624,12 @@ EOF
     systemctl daemon-reload
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
-    check_external_tcp "$(curl -4 -s ip.sb || true)" 443
-    show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
+    
+    # 拼接链接并传递给显示函数
+    local ps_name="VLESS-REALITY_${dest_server}_$(date +%Y%m%d)"
+    local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$dest_server&fp=$random_fp&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
+    
+    show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$link"
 }
 
 gen_vless_reality_xhttp() {
@@ -541,24 +645,17 @@ gen_vless_reality_xhttp() {
 
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local keys=$("$xray_bin" x25519)   
-    if [[ -z "$keys" ]]; then
-        echo -e "${Font_Red}[ERROR] x25519 生成失败${Font_Suffix}"
-        exit 1
-    fi
-    
-    local priv_key=$(echo "$keys" | grep -i "Private" | awk -F': ' '{print $2}' | tr -d ' ')
-    local pub_key=$(echo "$keys" | grep -i "Public" | awk -F': ' '{print $2}' | tr -d ' ')
-    
-    if [[ -z "$priv_key" || -z "$pub_key" ]]; then
-        echo -e "${Font_Red}[ERROR] key 解析失败${Font_Suffix}"
-        exit 1
-    fi
+    local priv_key=$(echo "$keys" | awk -F': ' '/[Pp]rivate/ {print $2}' | tr -d ' ')
+    local pub_key=$(echo "$keys" | awk -F': ' '/[Pp]ublic/ {print $2}' | tr -d ' ')
         
     local short_id=$(openssl rand -hex 8)
     local path=$(openssl rand -hex 6)
     local dest_server=$(get_random_dest)
-    echo -e "${Font_Cyan}本次 Reality 伪装站点：${Font_Green}$dest_server${Font_Suffix}"
+    local ip=$(get_public_ip || echo "0.0.0.0")
+    local random_fp=$(get_random_fp)
 
+    echo -e "${Font_Cyan}本次 Reality 伪装站点：${Font_Green}$dest_server${Font_Suffix}"
+    echo -e "${Font_Cyan}本次使用浏览器指纹：${Font_Green}$random_fp${Font_Suffix}"
     echo "$pub_key" > "${conf_dir}/pub.key"
 
     cat <<EOF > "$config_path"
@@ -595,8 +692,11 @@ EOF
     systemctl daemon-reload
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
-    check_external_tcp "$(curl -4 -s ip.sb || true)" 443      
-    show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
+    
+    local ps_name="VLESS-R-XHTTP_${dest_server}_$(date +%Y%m%d)"
+    local link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$dest_server&fp=$random_fp&pbk=$pub_key&sid=$short_id&type=xhttp&path=%2F$path#$ps_name"
+    
+    show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path" "$link"
 }
 
 # TLS 协议使用 common_tls_setup
@@ -1018,20 +1118,11 @@ EOF
 
 # ------------------------------------------------ 信息展示模块（完全保留）------------------------------------------------
 show_reality_info() {
-    local uuid=$1
-    local pub_key=$2
-    local short_id=$3
-    local sni=$4
-    local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
-    local ps_name="VLESS-REALITY_${sni}_$(date +%Y%m%d)"
-    local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
-
+    local uuid=$1 pub_key=$2 short_id=$3 sni=$4 link=$5
     echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
@@ -1039,19 +1130,19 @@ show_reality_info() {
 }
 
 show_reality_xhttp_info() {
-    local uuid=$1 pub_key=$2 short_id=$3 sni=$4 path=$5
-    local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
-    local ps_name="VLESS-R-XHTTP_${sni}_$(date +%Y%m%d)"
-    local link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=xhttp&path=%2F$path#$ps_name"
+    # 接收 6 个参数，最后一个是我们在 gen 函数中拼接好的完整 link
+    local uuid=$1 pub_key=$2 short_id=$3 sni=$4 path=$5 link=$6
 
     echo -e "${Font_Green}VLESS-REALITY-xhttp 安装成功！${Font_Suffix}"
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
-    echo -e "${Font_Cyan}路径 (Path):${Font_Suffix} /$path"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
+    echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
+    echo -e "${Font_Cyan}路径 (path):${Font_Suffix} /$path"
+    echo -e "${Font_Cyan}服务名称 (SNI):${Font_Suffix} $sni"
     echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
     echo -e "$link"
+    
+    # 调用二维码展示
     show_qr_code "$link"
     echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
@@ -1267,7 +1358,8 @@ main_menu() {
     clear
     echo -e "${Font_Magenta}================= 系统状态检查 ================${Font_Suffix}"
     
-    local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
+    #local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
+    local local_ip=$(get_public_ip || echo "获取失败")
     echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
 
     # ==================== 改进后的 Xray 服务状态检测 ====================
@@ -1343,7 +1435,7 @@ main_menu() {
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.14.12    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.15.00    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
