@@ -1310,11 +1310,25 @@ uninstall_all() {
 main_menu() {
     clear
     echo -e "${Font_Magenta}======================= 系统状态检查 ======================${Font_Suffix}"
+    # 1、vnstat 流量统计状态
+    if command -v vnstat &> /dev/null && systemctl is-active --quiet vnstat; then
+        echo -e "   流量统计 : ${Font_Green}监控中 ✅${Font_Suffix}"
+    elif command -v vnstat &> /dev/null; then
+        echo -e "   流量统计 : ${Font_Yellow}已安装但未启动${Font_Suffix}"
+    else
+        echo -e "   流量统计 : ${Font_Red}未安装 ❌ ${Font_Suffix}"
+    fi
     
-    local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
-    echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
-
-    # ==================== 改进后的 Xray 服务状态检测 ====================
+    # 2、BBR 状态
+    local bbr_status
+    if sysctl net.ipv4.tcp_congestion_control | grep -q "bbr"; then
+        bbr_status="${Font_Green}运行中 ✅${Font_Suffix}"
+    else
+        bbr_status="${Font_Red}未开启 ❌ ${Font_Suffix}"
+    fi
+    echo -e "   BBR 状态 : ${bbr_status}"  
+    
+    # 3、xray状态
     local xray_installed=false
     local xray_active=false
 
@@ -1329,14 +1343,13 @@ main_menu() {
     fi
 
     if [[ "$xray_installed" == true && "$xray_active" == true ]]; then
-        echo -e "   Xray 服务: ${Font_Green}运行中${Font_Suffix}"
+        echo -e "   Xray 服务: ${Font_Green}运行中 ✅${Font_Suffix}"
     elif [[ "$xray_installed" == true ]]; then
         echo -e "   Xray 服务: ${Font_Yellow}已安装但未运行${Font_Suffix}"
     else
-        echo -e "   Xray 服务: ${Font_Red}未安装${Font_Suffix}"
-    fi
-
-    # 当前协议检测（已优化）
+        echo -e "   Xray 服务: ${Font_Red}未安装 ❌ ${Font_Suffix}"
+    fi 
+    # 4、当前安装的协议
     if [[ -f $config_path ]]; then
         local current_proto="未知"
         if grep -q "realitySettings" $config_path; then
@@ -1370,24 +1383,17 @@ main_menu() {
         fi
         echo -e "   当前协议 : ${Font_Green}${current_proto}${Font_Suffix}"
     else
-        echo -e "   当前协议 : ${Font_Red}未配置${Font_Suffix}"
+        echo -e "   当前协议 : ${Font_Red}未配置 ❌ ${Font_Suffix}"
     fi
-
-    # ==================== 流量统计 ====================
-    if command -v vnstat &> /dev/null && systemctl is-active --quiet vnstat; then
-        echo -e "   流量统计 : ${Font_Green}监控中${Font_Suffix}"
-    elif command -v vnstat &> /dev/null; then
-        echo -e "   流量统计 : ${Font_Yellow}已安装但未启动${Font_Suffix}"
-    else
-        echo -e "   流量统计 : ${Font_Red}未安装${Font_Suffix}"
-    fi
-    
+    # 5、当前IP地址
+    local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
+    echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"  
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===========================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.17.12    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.17.31    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------------------"
