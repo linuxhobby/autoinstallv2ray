@@ -412,9 +412,6 @@ check_domain() {
 
         if [[ -z "$domain" ]]; then continue; fi
 
-        #local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "无")
-        #local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "无")       
-        #local resolved_ips=$(host "$domain" | grep "address" | grep -oP '\d+(\.\d+){3}|([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}' | sort -u)
         local local_ipv4=$(curl -4 -s --connect-timeout 5 ip.sb || echo "")
         local local_ipv6=$(curl -6 -s --connect-timeout 5 ip.sb || echo "")
         local resolved_ips=$(dig +short "$domain" A 2>/dev/null)
@@ -478,14 +475,14 @@ check_current_protocol() {
         local pub_key=$(cat ${conf_dir}/pub.key 2>/dev/null || echo "未找到公钥文件")
         local short_id=$(grep -m1 '"shortIds":' $config_path | grep -oP '(?<="shortIds": \[").*(?="])' | cut -d'"' -f1)
         local sni=$(grep -m1 '"serverNames":' $config_path | grep -oP '(?<="serverNames": \[").*(?="])' | cut -d'"' -f1)
-        show_reality_info "$uuid" "$pub_key" "$short_id" "$sni"
+        show_vless_reality_info "$uuid" "$pub_key" "$short_id" "$sni"
     
     elif [[ "$network" == "ws" ]]; then
         local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
         if grep -q '"protocol": "trojan"' $config_path; then
             show_trojan_info "ws" "$uuid" "$domain" "$path"
         else
-            show_ws_info "$uuid" "$domain" "$path"
+            show_vless_ws_info "$uuid" "$domain" "$path"
         fi
 
     elif [[ "$network" == "grpc" ]]; then
@@ -493,18 +490,18 @@ check_current_protocol() {
         if grep -q '"protocol": "trojan"' $config_path; then
             show_trojan_info "grpc" "$uuid" "$domain" "$serviceName"
         else
-            show_grpc_info "$uuid" "$domain" "$serviceName"
+            show_vless_grpc_info "$uuid" "$domain" "$serviceName"
         fi
 
     elif [[ "$network" == "xhttp" ]]; then
         local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
-        show_xhttp_info "$uuid" "$domain" "$path"
+        show_vless_xhttp_info "$uuid" "$domain" "$path"
 
     else
         echo -e "${Font_Red}未能识别协议类型。${Font_Suffix}"
     fi
     
-    echo -e "${Font_Yellow}-----------------------------------------------------${Font_Suffix}"
+    echo -e "${Font_Yellow}-----------------------------------------------------------${Font_Suffix}"
     read -p "按回车键返回主菜单"
 }
 
@@ -574,7 +571,7 @@ EOF
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
     check_external_tcp "$(curl -4 -s ip.sb || true)" 443
-    show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
+    show_vless_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server"
 }
 
 gen_vless_reality_xhttp() {
@@ -645,7 +642,7 @@ EOF
     restart_service xray
     check_service_alive 443 "VLESS-REALITY"
     check_external_tcp "$(curl -4 -s ip.sb || true)" 443      
-    show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
+    show_vless_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$path"
 }
 
 # TLS 协议使用 common_tls_setup
@@ -700,7 +697,7 @@ EOF
     echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
     sleep 2
     check_service_alive $port "VLESS-WS"    
-    show_ws_info "$uuid" "$domain" "$path"
+    show_vless_ws_info "$uuid" "$domain" "$path"
 }
 
 gen_vless_grpc() {
@@ -758,7 +755,7 @@ EOF
     sleep 2
     check_service_alive $port "VLESS-gRPC"
     check_external_tcp "$domain" 443    
-    show_grpc_info "$uuid" "$domain" "$serviceName"
+    show_vless_grpc_info "$uuid" "$domain" "$serviceName"
 }
 
 gen_vless_xhttp() {
@@ -813,7 +810,7 @@ EOF
     sleep 2
     check_service_alive $port "VLESS-XHTTP"
     check_external_tcp "$domain" 443        
-    show_xhttp_info "$uuid" "$domain" "$path"
+    show_vless_xhttp_info "$uuid" "$domain" "$path"
 }
 
 gen_trojan_ws() {
@@ -1066,7 +1063,7 @@ EOF
 }
 
 # ------------------------------------------------ 信息展示模块（完全保留）------------------------------------------------
-show_reality_info() {
+show_vless_reality_info() {
     local uuid=$1
     local pub_key=$2
     local short_id=$3
@@ -1076,87 +1073,87 @@ show_reality_info() {
     local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
 
     echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
 }
 
-show_reality_xhttp_info() {
+show_vless_reality_xhttp_info() {
     local uuid=$1 pub_key=$2 short_id=$3 sni=$4 path=$5
     local ip=$(curl -4 -s ip.sb || curl -s http://ipv4.icanhazip.com)
     local ps_name="VLESS-R-XHTTP_${sni}_$(date +%Y%m%d)"
     local link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=xhttp&path=%2F$path#$ps_name"
 
     echo -e "${Font_Green}VLESS-REALITY-xhttp 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "${Font_Cyan}地址 (IPv4):${Font_Suffix} $ip"
     echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
     echo -e "${Font_Cyan}路径 (Path):${Font_Suffix} /$path"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
 }
 
-show_ws_info() {
+show_vless_ws_info() {
     local uuid=$1 domain=$2 path=$3
     local ps_name="${domain}_$(date +%Y%m%d)"
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=ws&host=$domain&path=%2F$path#$ps_name"
 
     echo -e "${Font_Green}VLESS-WS-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
 }
 
-show_grpc_info() {
+show_vless_grpc_info() {
     local uuid=$1 domain=$2 serviceName=$3
     local ps_name="${domain}_$(date +%Y%m%d)"
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=grpc&serviceName=$serviceName&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-gRPC-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}ServiceName:${Font_Suffix} $serviceName"
     echo -e "${Font_Cyan}端口:${Font_Suffix} 443 (TLS)"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
 }
 
-show_xhttp_info() {
+show_vless_xhttp_info() {
     local uuid=$1 domain=$2 path=$3
     local ps_name="${domain}_$(date +%Y%m%d)"
     local link="vless://$uuid@$domain:443?encryption=none&security=tls&type=xhttp&path=%2F$path&sni=$domain#$ps_name"
 
     echo -e "${Font_Green}VLESS-XHTTP-TLS 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "${Font_Cyan}域名:${Font_Suffix} $domain"
     echo -e "${Font_Cyan}UUID:${Font_Suffix} $uuid"
     echo -e "${Font_Cyan}路径:${Font_Suffix} /$path"
     echo -e "${Font_Cyan}模式:${Font_Suffix} auto (建议客户端手动选 auto)"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "$link"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}=====================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
 }
 
 show_trojan_info() {
@@ -1183,11 +1180,9 @@ show_trojan_info() {
     echo -e "${Font_Cyan}路径/服务名   :${Font_Suffix} ${path_or_service}"
     echo -e "${Font_Cyan}TLS/SNI       :${Font_Suffix} ${dom}"
     echo -e "${Font_Green}-------------------------------------${Font_Suffix}"
-    echo -e "${Font_Cyan}分享链接:${Font_Suffix}"
+    echo -e "${Font_Red}分享链接:${Font_Suffix}"
     echo -e "${Font_Yellow}${link}${Font_Suffix}"
     echo -e "${Font_Green}-------------------------------------${Font_Suffix}\n"
-
-    # 如果有二维码展示函数，取消下面注释
     show_qr_code "$link"
 }
 
@@ -1203,7 +1198,7 @@ display_config_board() {
         echo -e "  路径 (Path) :  ${Font_Cyan}/${WPATH}${Font_Suffix}"
     fi
     echo -e "${Font_Green}————————————————————————————————————————————————————————————————${Font_Suffix}"
-    echo -e "  分享链接: ${Font_Yellow}${p_link}${Font_Suffix}"
+    echo -e "  分享链接: ${Font_Red}${p_link}${Font_Suffix}"
     echo -e "${Font_Green}————————————————————————————————————————————————————————————————${Font_Suffix}"
     show_qr_code "$p_link"
 }
@@ -1314,7 +1309,7 @@ uninstall_all() {
 # --- 主菜单（保留原样，仅加强调用）---
 main_menu() {
     clear
-    echo -e "${Font_Magenta}==================== 系统状态检查 ===================${Font_Suffix}"
+    echo -e "${Font_Magenta}======================= 系统状态检查 ======================${Font_Suffix}"
     
     local local_ip=$(curl -4 -s --connect-timeout 2 ip.sb || curl -s --connect-timeout 2 http://ipv4.icanhazip.com || echo "获取失败")
     echo -e "   本机 IP  : ${Font_Green}${local_ip}${Font_Suffix}"
@@ -1389,13 +1384,13 @@ main_menu() {
     
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
-    echo -e "${Font_Red}=====================================================${Font_Suffix}"
+    echo -e "${Font_Red}===========================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
     echo -e "${Font_Red}   版本号：v1.0.05.10.17.12    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
-    echo -e "-----------------------------------------------------"
+    echo -e "-----------------------------------------------------------"
     echo -e "${Font_Blue}  【1】 . 安装 VLESS-REALITY-Vision${Font_Suffix}   ${Font_Red}【推荐，最强隐蔽/不依赖域名】${Font_Suffix}"
     echo -e "${Font_Blue}  【2】 . 安装 VLESS-REALITY-xhttp${Font_Suffix}    ${Font_Cyan}【最新黑科技/综合最强】${Font_Suffix}"   
     echo -e "${Font_Blue}  【3】 . 安装 VLESS-WS-TLS${Font_Suffix}           ${Font_Cyan}【CDN兼容/标准WebSocket】${Font_Suffix}"
@@ -1406,12 +1401,12 @@ main_menu() {
     echo -e "${Font_Blue}  【8】 . 安装 VMess-WS-TLS${Font_Suffix}           ${Font_Yellow}【广泛兼容/传统方案】${Font_Suffix}"
     echo -e "${Font_Blue}  【9】 . 安装 VMess-gRPC-TLS${Font_Suffix}         ${Font_Yellow}【兼容gRPC新特性】${Font_Suffix}"
   
-    echo -e "-----------------------------------------------------"
+    echo -e "-----------------------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
     echo -e "${Font_Green}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
-    echo -e "-----------------------------------------------------"
+    echo -e "-----------------------------------------------------------"
     read -p "请选择: " num
 
     case "$num" in
