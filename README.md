@@ -44,7 +44,8 @@ wget -N https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/main/ins
 ---
 
 ## 🖼 脚本界面展示
-<img width="565" height="558" alt="image" src="https://github.com/user-attachments/assets/e7013d98-f5df-48f6-a484-7d3bd7f16006" />
+<img width="608" height="683" alt="image" src="https://github.com/user-attachments/assets/2d68f809-6bb0-4197-8128-e9766a4488b0" />
+
 
 ## 🖼 安装成功后信息展示
 <img width="770" height="811" alt="image" src="https://github.com/user-attachments/assets/039947ab-2bdb-40c4-8eb4-6e9fd215ece0" />
