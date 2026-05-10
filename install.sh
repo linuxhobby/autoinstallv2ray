@@ -3,6 +3,7 @@
 # ====================================================
 # 作者: 人生若只如初见
 # 更新：2024/05/10
+# Release、Standard、Snapshot、Staging
 # 支持以下协议矩阵一键自动安装
 #  【1】 . 安装 VLESS-REALITY-Vision
 #  【2】 . 安装 VLESS-REALITY-xhttp
@@ -20,6 +21,7 @@
 #   2026/05/07：1、增加VLESS-REALITY-xhttp协议。2、修复当前协议判断，更详细。
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
 #   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
+
 # ====================================================
 # 终端颜色定义
 Font_Black="\033[30m"   # 黑色
@@ -294,6 +296,105 @@ enable_bbr() {
 }
 # ------------- 自定义函数区域 END -------------
 
+# ------------- BBR 管理子菜单 START -------------
+# BBR 管理子菜单
+menu_bbr() {
+    clear
+    local bbr_status
+    local current_algo=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')
+    
+    if [[ "$current_algo" == "bbr" ]]; then
+        bbr_status="${Font_Green}运行中 (BBR/v1/v3)${Font_Suffix}"
+    elif [[ "$current_algo" == "bbrplus" ]]; then
+        bbr_status="${Font_Green}运行中 (BBRplus)${Font_Suffix}"
+    else
+        bbr_status="${Font_Red}未开启 ($current_algo)${Font_Suffix}"
+    fi
+
+    echo -e "${Font_Magenta}===================== BBR 网络加速管理 =====================${Font_Suffix}"
+    echo -e "   当前状态 : ${bbr_status}"
+    echo -e "   当前算法 : ${Font_Cyan}${current_algo}${Font_Suffix}"
+    echo -e "${Font_Magenta}============================================================${Font_Suffix}"
+    echo -e "  【1】 . 开启 BBR 原版 (v1 - 最稳定)"
+    echo -e "  【2】 . 开启 BBRv3 (内核 6.4+ 自动启用)"
+    echo -e "  【3】 . 开启 BBRplus (需更换内核，${Font_Red}有风险${Font_Suffix})"
+    echo -e "  【4】 . 关闭 BBR (恢复系统默认 cubic)"
+    echo -e "  【q】 . 返回主菜单"
+    echo -e "${Font_Magenta}============================================================${Font_Suffix}"
+    read -p "请选择: " bbr_num
+
+    case "$bbr_num" in
+        1) enable_bbr_v1; read -p "按回车键继续..."; menu_bbr ;;
+        2) enable_bbr_v3; read -p "按回车键继续..."; menu_bbr ;;
+        3) install_bbr_plus; read -p "按回车键继续..."; menu_bbr ;;
+        4) disable_bbr; read -p "按回车键继续..."; menu_bbr ;;
+        q|Q) main_menu ;;
+        *) menu_bbr ;;
+    esac
+}
+
+# 开启 BBR v1
+enable_bbr_v1() {
+    echo -e "${Font_Cyan}>>> 正在配置 BBRv1...${Font_Suffix}"
+    
+    if [ ! -f /etc/sysctl.conf ]; then
+        touch /etc/sysctl.conf
+    fi
+
+    sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
+    sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
+    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    
+    sysctl -p >/dev/null 2>&1
+    echo -e "${Font_Green}[OK] BBRv1 已成功开启。${Font_Suffix}"
+}
+
+# 开启 BBRv3
+enable_bbr_v3() {
+    echo -e "${Font_Cyan}>>> 正在配置 BBRv3...${Font_Suffix}"
+    # 在 Debian 12+ / Ubuntu 24+ 的新内核中，开启 bbr 即可享受新版本特性
+    sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
+    sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
+    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    sysctl -p >/dev/null 2>&1
+    echo -e "${Font_Green}[OK] BBRv3 指令已发送。若内核版本高于 6.4，系统将自动运行 v3。${Font_Suffix}"
+}
+
+# 开启 BBRplus
+install_bbr_plus() {
+    echo -e "${Font_Red}警告：开启 BBRplus 需要下载第三方内核并重启服务器！${Font_Suffix}"
+    echo -e "${Font_Yellow}注意：在 Debian 12+ / Ubuntu 24+ 上更换旧内核可能导致无法开机，请务必确认有 VNC 访问权限。${Font_Suffix}"
+    read -p "确定要继续吗？(y/n): " confirm
+    if [[ "$confirm" == "y" ]]; then
+        # 替换为目前仍然有效的全能加速脚本
+        wget -N --no-check-certificate "https://raw.githubusercontent.com/chiakge/Linux-NetSpeed/master/tcp.sh" && chmod +x tcp.sh && ./tcp.sh
+    fi
+}
+
+# 关闭 BBR
+disable_bbr() {
+    echo -e "${Font_Cyan}>>> 正在恢复默认拥塞控制算法 (cubic)...${Font_Suffix}"
+    
+    # 关键修复：如果文件不存在，则创建一个空文件
+    if [ ! -f /etc/sysctl.conf ]; then
+        touch /etc/sysctl.conf
+    fi
+
+    # 清理旧配置
+    sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
+    sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
+    
+    # 写入默认值
+    echo "net.core.default_qdisc=fq_codel" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_congestion_control=cubic" >> /etc/sysctl.conf
+    
+    sysctl -p >/dev/null 2>&1
+    echo -e "${Font_Yellow}[OK] BBR 已关闭，系统已恢复默认配置。${Font_Suffix}"
+}
+
+# ------------- BBR 管理子菜单 START -------------
 # --- 1. 环境准备模块 ---
 preparation_stack() {
     check_root
@@ -1393,7 +1494,7 @@ main_menu() {
     echo -e "${Font_Red}===========================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.18.18（Release）    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.18.45（release）    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------------------"
@@ -1410,6 +1511,7 @@ main_menu() {
     echo -e "-----------------------------------------------------------"
     echo -e "${Font_Magenta}  【c】 . 查看当前协议信息与链接${Font_Suffix}" 
     echo -e "${Font_Magenta}  【v】 . 查看流量统计 (vnstat)${Font_Suffix}"
+    echo -e "${Font_Magenta}  【b】 . 管理网络加速 (BBR)${Font_Suffix}"
     echo -e "${Font_Green}  【d】 . 卸载与清理${Font_Suffix}"
     echo -e "${Font_Yellow}  【q】 . 退出脚本${Font_Suffix}" 
     echo -e "-----------------------------------------------------------"
@@ -1427,6 +1529,7 @@ main_menu() {
         9) preparation_stack; gen_vmess_grpc; echo -e "${Font_Red}安装完成，请复制上方链接后按回车键返回菜单...${Font_Suffix}"; read; main_menu ;;
         c|C) check_current_protocol; main_menu ;;
         v|V) show_usage; main_menu ;;
+        b|B) menu_bbr; main_menu ;;
         d|D) uninstall_all; main_menu ;;
         q|Q) exit 0 ;;
         *) echo -e "${Font_Red}输入错误，请重新选择！${Font_Suffix}"; sleep 1; main_menu ;;
