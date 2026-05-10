@@ -517,52 +517,66 @@ check_current_protocol() {
 
     echo -e "${Font_Magenta}--- 当前协议详细信息 ---${Font_Suffix}"
     
-    local uuid=$(grep -m1 '"id":' $config_path | grep -oP '(?<="id": ")[^"]+' || grep -m1 '"password":' $config_path | grep -oP '(?<="password": ")[^"]+')
-    local network=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+')
-    
-    #local ip=$(curl -4 -s --connect-timeout 5 ip.sb || curl -s http://ipv4.icanhazip.com)
+    # 使用 || echo "" 确保在 grep 失败时变量依然被定义，防止 set -u 报错
+    local uuid=$(grep -m1 '"id":' $config_path | grep -oP '(?<="id": ")[^"]+' || grep -m1 '"password":' $config_path | grep -oP '(?<="password": ")[^"]+' || echo "未知")
+    local network=$(grep -m1 '"network":' $config_path | grep -oP '(?<="network": ")[^"]+' || echo "tcp")
     local ip=$(get_public_ip || echo "获取失败")
+    
+    # 域名获取逻辑优化
     local domain=""
     if [[ -f "/etc/caddy/Caddyfile" ]]; then
-        domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ')
+        domain=$(grep -oP '^[^#\s{]+' /etc/caddy/Caddyfile | head -n1 | tr -d ' ' || echo "")
     fi
-    [[ -z "$domain" ]] && domain=$(grep -oP '(?<="serverNames": \[")[^"]+' $config_path | head -n1)
+    [[ -z "$domain" ]] && domain=$(grep -oP '(?<="serverNames": \[")[^"]+' $config_path | head -n1 || echo "")
     [[ -z "$domain" ]] && domain=$ip
 
+    # --- 核心判断逻辑 ---
+    
+    # 1. REALITY 家族 (Vision 或 xhttp)
     if grep -q "realitySettings" $config_path; then
         local pub_key=$(cat ${conf_dir}/pub.key 2>/dev/null || echo "未找到公钥文件")
-        local short_id=$(grep -m1 '"shortIds":' $config_path | grep -oP '(?<="shortIds": \[").*(?="])' | cut -d'"' -f1)
-        local sni=$(grep -m1 '"serverNames":' $config_path | grep -oP '(?<="serverNames": \[").*(?="])' | cut -d'"' -f1)
-        show_reality_info "$uuid" "$pub_key" "$short_id" "$sni"
-    
+        local short_id=$(grep -m1 '"shortIds":' $config_path | grep -oP '(?<="shortIds": \[").*(?="])' | cut -d'"' -f1 || echo "")
+        local sni=$(grep -m1 '"serverNames":' $config_path | grep -oP '(?<="serverNames": \[").*(?="])' | cut -d'"' -f1 || echo "")
+        
+        # 判断 REALITY 下的传输层
+        if [[ "$network" == "xhttp" ]]; then
+            local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+' || echo "未知路径")
+            show_reality_xhttp_info "$uuid" "$pub_key" "$short_id" "$sni" "$path"
+        else
+            # 默认为 Vision
+            show_reality_info "$uuid" "$pub_key" "$short_id" "$sni"
+        fi
+
+    # 2. WebSocket 传输
     elif [[ "$network" == "ws" ]]; then
-        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
+        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+' || echo "未知路径")
         if grep -q '"protocol": "trojan"' $config_path; then
             show_trojan_info "ws" "$uuid" "$domain" "$path"
         else
             show_ws_info "$uuid" "$domain" "$path"
         fi
 
+    # 3. gRPC 传输
     elif [[ "$network" == "grpc" ]]; then
-        local serviceName=$(grep -m1 '"serviceName":' $config_path | grep -oP '(?<="serviceName": ")[^"]+')
+        local serviceName=$(grep -m1 '"serviceName":' $config_path | grep -oP '(?<="serviceName": ")[^"]+' || echo "未知服务名")
         if grep -q '"protocol": "trojan"' $config_path; then
             show_trojan_info "grpc" "$uuid" "$domain" "$serviceName"
         else
             show_grpc_info "$uuid" "$domain" "$serviceName"
         fi
 
+    # 4. 标准 xhttp 传输 (非 REALITY)
     elif [[ "$network" == "xhttp" ]]; then
-        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+')
+        local path=$(grep -m1 '"path":' $config_path | grep -oP '(?<="path": "/)[^"]+' || echo "未知路径")
         show_xhttp_info "$uuid" "$domain" "$path"
 
     else
-        echo -e "${Font_Red}未能识别协议类型。${Font_Suffix}"
+        echo -e "${Font_Red}未能识别协议类型，请检查 config.json 是否损坏。${Font_Suffix}"
     fi
     
     echo -e "${Font_Yellow}-----------------------------------------------${Font_Suffix}"
     read -p "按回车键返回主菜单"
 }
-
 # --------------- 核心协议模块 start ---------------
 gen_vless_reality() {
     echo -e "${Font_Cyan}正在配置 VLESS-REALITY-Vision...${Font_Suffix}"
@@ -575,25 +589,34 @@ gen_vless_reality() {
         return 1
     fi
 
-    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    # 1. 安全获取 UUID 和 Keys
+    local uuid=$(cat /proc/sys/kernel/random/uuid || echo "")
+    [[ -z "$uuid" ]] && uuid=$(cat /proc/sys/kernel/random/uuid) # 再次尝试
+
     local keys=$("$xray_bin" x25519)
     if [[ -z "$keys" ]]; then
         echo -e "${Font_Red}[ERROR] x25519 生成失败${Font_Suffix}"
-        exit 1
+        return 1 # 在严格模式下，用 return 比 exit 更优雅
     fi
-    local priv_key=$(echo "$keys" | awk -F': ' '/[Pp]rivate/ {print $2}' | tr -d ' ')
-    local pub_key=$(echo "$keys" | awk -F': ' '/[Pp]ublic/ {print $2}' | tr -d ' ')
+
+    # 2. 提取密钥（增加 || echo "" 防止 awk 失败触发 set -u）
+    local priv_key=$(echo "$keys" | awk -F': ' '/[Pp]rivate/ {print $2}' | tr -d ' ' || echo "")
+    local pub_key=$(echo "$keys" | awk -F': ' '/[Pp]ublic/ {print $2}' | tr -d ' ' || echo "")
     
+    [[ -z "$priv_key" || -z "$pub_key" ]] && { echo -e "${Font_Red}密钥解析失败${Font_Suffix}"; return 1; }
+
     echo "$pub_key" > "${conf_dir}/pub.key"
     
-    local dest_server=$(get_random_dest)
-    local short_id=$(openssl rand -hex 8)
+    # 3. 获取其他配置项
+    local dest_server=$(get_random_dest || echo "www.microsoft.com")
+    local short_id=$(openssl rand -hex 8 || echo "0011223344556677")
     local ip=$(get_public_ip || echo "0.0.0.0")
-    local random_fp=$(get_random_fp)
+    local random_fp=$(get_random_fp || echo "chrome")
 
     echo -e "${Font_Cyan}本次 Reality 伪装站点：${Font_Green}$dest_server${Font_Suffix}"
     echo -e "${Font_Cyan}本次使用浏览器指纹：${Font_Green}$random_fp${Font_Suffix}"
 
+    # 4. 写入配置
     cat <<EOF > "$config_path"
 {
     "log": { "loglevel": "warning" },
@@ -620,15 +643,23 @@ gen_vless_reality() {
     "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
+
+    # 5. 服务启动与检查
     check_json "$config_path"
     systemctl daemon-reload
     restart_service xray
-    check_service_alive 443 "VLESS-REALITY"
     
-    # 拼接链接并传递给显示函数
+    # 关键修改：不要让 check_service_alive 的失败直接终止脚本，否则你看不到配置信息
+    if ! check_service_alive 443 "VLESS-REALITY"; then
+        echo -e "${Font_Yellow}提示: 服务可能启动稍慢，请稍后手动检查。${Font_Suffix}"
+    fi
+    
+    # 6. 拼接链接并传递（确保变量名正确）
     local ps_name="VLESS-REALITY_${dest_server}_$(date +%Y%m%d)"
+    # 注意：link 中使用了 $random_fp 和 $pub_key 等，必须确保这些变量已定义
     local link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$dest_server&fp=$random_fp&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
     
+    # 7. 调用您刚修复的带防御参数的显示函数
     show_reality_info "$uuid" "$pub_key" "$short_id" "$dest_server" "$link"
 }
 
@@ -1118,10 +1149,11 @@ EOF
 
 # ------------------------------------------------ 信息展示模块（完全保留）------------------------------------------------
 show_reality_info() {
-    local uuid=$1
-    local pub_key=$2
-    local short_id=$3
-    local sni=$4
+    # 修复核心：为前四个位置参数也增加 :- 默认值保护，确保严格模式下不崩溃
+    local uuid=${1:-"未知"}
+    local pub_key=${2:-"未知"}
+    local short_id=${3:-"未知"}
+    local sni=${4:-"未知"}
     # 使用 ${5:-} 防止严格模式下 $5 未定义报错
     local link=${5:-""}
 
@@ -1140,6 +1172,7 @@ show_reality_info() {
     echo -e "  伪装域名(SNI): ${Font_Cyan}$sni${Font_Suffix}"
     echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
     echo -e "  分享链接: ${Font_Yellow}$link${Font_Suffix}"
+    # 保持原样，不删减
     show_qr_code "$link"
 }
 
