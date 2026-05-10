@@ -43,7 +43,7 @@ trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行执行失败！\n出
 is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-PRESET_DOMAIN="test.myvpsworld.top" 
+PRESET_DOMAIN="hello.myvpsworld.top" 
 XRAY_VERSION="26.5.3"   #最新版 latest
 CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
@@ -1118,33 +1118,60 @@ EOF
 
 # ------------------------------------------------ 信息展示模块（完全保留）------------------------------------------------
 show_reality_info() {
-    local uuid=$1 pub_key=$2 short_id=$3 sni=$4 link=$5
-    echo -e "${Font_Green}VLESS-REALITY 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
-    echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
-    echo -e "$link"
+    local uuid=$1
+    local pub_key=$2
+    local short_id=$3
+    local sni=$4
+    # 使用 ${5:-} 防止严格模式下 $5 未定义报错
+    local link=${5:-""}
+
+    # 如果没有传入链接，则在函数内现场构造
+    if [[ -z "$link" ]]; then
+        local ip=$(get_public_ip || echo "0.0.0.0")
+        local ps_name="REALITY_QUERY_$(date +%m%d)"
+        link="vless://$uuid@$ip:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=tcp#$ps_name"
+    fi
+
+    echo -e "${Font_Green}VLESS-REALITY-Vision 配置信息：${Font_Suffix}"
+    echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
+    echo -e "  用户ID(UUID): ${Font_Cyan}$uuid${Font_Suffix}"
+    echo -e "  公钥(PubKey): ${Font_Cyan}$pub_key${Font_Suffix}"
+    echo -e "  短ID(SID)   : ${Font_Cyan}$short_id${Font_Suffix}"
+    echo -e "  伪装域名(SNI): ${Font_Cyan}$sni${Font_Suffix}"
+    echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
+    echo -e "  分享链接: ${Font_Yellow}$link${Font_Suffix}"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_reality_xhttp_info() {
-    # 接收 6 个参数，最后一个是我们在 gen 函数中拼接好的完整 link
-    local uuid=$1 pub_key=$2 short_id=$3 sni=$4 path=$5 link=$6
+    # 使用 ${N:-} 语法，如果参数不存在则赋值为空字符串，避免 unbound variable 错误
+    local uuid=${1:-"未知"}
+    local pub_key=${2:-"未知"}
+    local short_id=${3:-"未知"}
+    local sni=${4:-"未知"}
+    local path=${5:-"未知"}
+    local link=${6:-""}
 
-    echo -e "${Font_Green}VLESS-REALITY-xhttp 安装成功！${Font_Suffix}"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
-    echo -e "${Font_Cyan}公钥 (pbk):${Font_Suffix} $pub_key"
-    echo -e "${Font_Cyan}ShortID:${Font_Suffix} $short_id"
-    echo -e "${Font_Cyan}路径 (path):${Font_Suffix} /$path"
-    echo -e "${Font_Cyan}服务名称 (SNI):${Font_Suffix} $sni"
-    echo -e "${Font_Yellow}分享链接:${Font_Suffix}"
-    echo -e "$link"
-    
-    # 调用二维码展示
+    # 如果是查询模式（没传 link），则现场构造链接
+    if [[ -z "$link" ]]; then
+        local ip=$(get_public_ip || echo "0.0.0.0")
+        local ps_name="R-XHTTP_QUERY_$(date +%m%d)"
+        # 转换路径中的斜杠为 URL 编码 %2F
+        local encoded_path=$(echo "/$path" | sed 's/\//%2F/g')
+        link="vless://$uuid@$ip:443?encryption=none&security=reality&sni=$sni&fp=chrome&pbk=$pub_key&sid=$short_id&type=xhttp&path=$encoded_path#$ps_name"
+    fi
+
+    echo -e "${Font_Green}VLESS-REALITY-xhttp 配置信息：${Font_Suffix}"
+    echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
+    echo -e "  用户ID(UUID): ${Font_Cyan}$uuid${Font_Suffix}"
+    echo -e "  公钥(PubKey): ${Font_Cyan}$pub_key${Font_Suffix}"
+    echo -e "  短ID(SID)   : ${Font_Cyan}$short_id${Font_Suffix}"
+    echo -e "  伪装域名(SNI): ${Font_Cyan}$sni${Font_Suffix}"
+    echo -e "  路径(Path)  : ${Font_Cyan}/$path${Font_Suffix}"
+    echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
+    echo -e "  分享链接: ${Font_Yellow}$link${Font_Suffix}"
+    echo -e "${Font_Magenta}————————————————————————————————————————————————————————————————${Font_Suffix}"
     show_qr_code "$link"
-    echo -e "${Font_Magenta}===============================================${Font_Suffix}"
 }
 
 show_ws_info() {
@@ -1435,7 +1462,7 @@ main_menu() {
     echo -e "${Font_Red}===============================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.15.00    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.15.57    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
