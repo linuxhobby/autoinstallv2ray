@@ -78,6 +78,111 @@ get_random_dest() {
     echo "${REALITY_DEST_OPTIONS[$((RANDOM % ${#REALITY_DEST_OPTIONS[@]}))]}"
 }
 
+# --- 1. 环境准备模块 ---
+preparation_stack() {
+    check_root
+    setup_xray_user
+
+    # === 时区处理（改为可选，不再强制）===
+    check_and_set_timezone
+
+    echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
+    apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
+    dpkg --configure -a
+
+    # 调用防火墙策略函数
+    enable_firewall
+    
+    # 调用开启BBR函数
+    enable_bbr
+    
+    # 调用依赖检查函数
+    check_dependencies
+
+    systemctl enable vnstat --now 2>/dev/null || true
+
+    # ==================== Xray 安装 ====================
+    # 安装 Xray（安全方式：先下载再执行）
+    if ! command -v xray &> /dev/null || [ ! -f "/etc/systemd/system/xray.service" ]; then
+        echo -e "${Font_Cyan}>>> 正在安装 Xray v${XRAY_VERSION}...${Font_Suffix}"
+        TMP_SCRIPT=$(mktemp)
+        check_command curl -fsSL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh -o "$TMP_SCRIPT"
+        
+        # -------------------------------------------------------
+        # 关键点：设置此变量后，官方脚本将只安装文件，不再报错启动
+        export XRAY_INSTALL_SKIP_START=1 
+        # -------------------------------------------------------
+
+        check_command bash "$TMP_SCRIPT" install --version ${XRAY_VERSION}
+        rm -f "$TMP_SCRIPT"
+        check_command ln -sf /usr/local/bin/xray /usr/bin/xray
+        
+        # 仅开启自启，不触发启动命令
+        systemctl enable xray >/dev/null 2>&1 || true
+        
+        echo -e "${Font_Green}[OK] Xray v${XRAY_VERSION} 安装完成（已屏蔽无效启动告警）${Font_Suffix}"
+    fi
+
+    # 创建 systemd 服务（仅创建，不启动）
+    if [ ! -f "/etc/systemd/system/xray.service" ]; then
+        cat <<EOF > /etc/systemd/system/xray.service
+[Unit]
+Description=Xray Service
+After=network.target nss-lookup.target
+
+[Service]
+User=xray
+Group=xray
+ExecStart=/usr/local/bin/xray run -config ${config_path}
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=${conf_dir}
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    systemctl daemon-reload
+    systemctl enable xray
+
+    echo -e "${Font_Green}[OK] 环境准备完成（Xray 服务已启用，等待配置生成后启动）${Font_Suffix}"
+}
+
+# --- 1.5. Caddy 安装函数（完全保留）---
+install_caddy() {
+    if ! command -v caddy &> /dev/null; then
+        echo -e "${Font_Cyan}正在安装 Caddy v${CADDY_VERSION}...${Font_Suffix}"
+        
+        rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+
+        check_command curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        check_command curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        
+        check_command apt-get update -qq
+        check_command apt-get install caddy=${CADDY_VERSION} -y || check_command apt-get install caddy -y
+
+        if [ "$FIX_VER" -eq 1 ] && command -v caddy &> /dev/null; then
+            apt-mark hold caddy
+        fi
+
+        if ! command -v caddy &> /dev/null; then
+            echo -e "${Font_Red}[X] Caddy 安装失败！${Font_Suffix}"
+            exit 1
+        fi
+        echo -e "${Font_Green}[OK] Caddy 安装成功${Font_Suffix}"
+    fi
+    mkdir -p /etc/caddy
+}
+
 # --- 域名解析检测（完全保留）---
 check_domain() {
     local domain=""
