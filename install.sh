@@ -2,7 +2,7 @@
 
 # ====================================================
 # 作者: 人生若只如初见
-# 更新：2024/05/07 （优化版 by Grok）
+# 更新：2024/05/10
 # 支持以下协议矩阵一键自动安装
 #  【1】 . 安装 VLESS-REALITY-Vision
 #  【2】 . 安装 VLESS-REALITY-xhttp
@@ -21,10 +21,6 @@
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
 #   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
 # ====================================================
-# ==================== 严格模式 + 错误追踪 ====================
-set -euo pipefail
-# 捕获错误，打印行号和出错命令
-trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行执行失败！\n出错命令: $BASH_COMMAND${Font_Suffix}"' ERR
 # 终端颜色定义
 Font_Black="\033[30m"   # 黑色
 Font_Red="\033[31m"     # 红色
@@ -36,16 +32,7 @@ Font_Cyan="\033[36m"    # 青色
 Font_White="\033[37m"   # 白色
 Font_Suffix="\033[0m"   # 重置颜色/颜色结尾
 
-# 变量初始化
-is_core="xray"
-conf_dir="/usr/local/etc/xray"
-config_path="${conf_dir}/config.json"
-PRESET_DOMAIN="" 
-XRAY_VERSION="26.5.3"   #最新版 latest
-CADDY_VERSION="2.11.2"
-FIX_VER=1 #1，锁定。0，最新版#
-
-# ==================== 架构检测 ====================
+# 架构检测，如果不支持，直接不运行
 ARCH=$(uname -m)
 case ${ARCH} in
     x86_64)   XRAY_ARCH="64" ;;
@@ -56,7 +43,24 @@ case ${ARCH} in
 esac
 
 echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
-# ==================== Reality 伪装域名配置（随机选择） ====================
+
+# ------------- 严格模式 + 错误追踪 -------------
+set -e
+set -o pipefail
+# 捕获错误，打印行号和出错命令
+trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行执行失败！\n出错命令: $BASH_COMMAND${Font_Suffix}"' ERR
+
+# ------------- 全局变量定义区域 SRTART -------------
+# 变量初始化
+is_core="xray"
+conf_dir="/usr/local/etc/xray"
+config_path="${conf_dir}/config.json"
+PRESET_DOMAIN="test.myvpsworld.top" #如果为空，安装过程中手动输入
+XRAY_VERSION="26.5.3"   #最新版 latest
+CADDY_VERSION="2.11.2"
+FIX_VER=1 #1，锁定。0，最新版#
+
+# Reality 伪装域名配置（随机选择）
 REALITY_DEST_OPTIONS=(
     "www.microsoft.com"
     "www.apple.com"
@@ -66,13 +70,15 @@ REALITY_DEST_OPTIONS=(
     "www.bing.com"
     "account.microsoft.com"
 )
+# ------------- 全局变量定义区域 END -------------
 
-# 随机选择函数
+# ------------- 自定义函数区域 SRTART -------------
+# 自定义函数：随机选择函数
 get_random_dest() {
     local idx=$((RANDOM % ${#REALITY_DEST_OPTIONS[@]}))
     echo "${REALITY_DEST_OPTIONS[$idx]}"
 }
-# ==================== 优化新增函数 ====================
+# 自定义函数：检查当前用户root
 check_root() {
     if [ "$EUID" -ne 0 ]; then
         echo -e "${Font_Red}必须以 root 权限运行此脚本！${Font_Suffix}"
@@ -97,7 +103,7 @@ setup_xray_user() {
     chown -R xray:xray "$conf_dir" 2>/dev/null || true
 }
 
-# TLS 类协议公共准备（减少少量重复）
+# 自定义函数：TLS 类协议公共准备（减少少量重复）
 common_tls_setup() {
     install_caddy
 }
@@ -112,7 +118,7 @@ restart_service() {
     fi
 }
 
-#JSON 校验函数
+#自定义函数：JSON 校验函数
 check_json() {
     local file=$1
 
@@ -128,7 +134,7 @@ check_json() {
     fi
 }
 
-#端口检测函数
+#自定义函数：端口检测函数
 check_port() {
     local port=$1
 
@@ -139,7 +145,7 @@ check_port() {
     fi
 }
 
-#Caddy 配置检查函数
+#自定义函数：Caddy 配置检查函数
 check_caddy() {
     if ! command -v caddy &>/dev/null; then
         echo -e "${Font_Red}[ERROR] Caddy 未安装${Font_Suffix}"
@@ -154,7 +160,7 @@ check_caddy() {
         exit 1
     fi
 }
-#服务端口存活检查函数
+#自定义函数：服务端口存活检查函数
 check_service_alive() {
     local port=$1
     local name=$2
@@ -174,7 +180,7 @@ check_service_alive() {
     echo -e "${Font_Green}[OK] $name 服务正常 ($port)${Font_Suffix}"
 }
 
-#TCP检查
+#自定义函数：TCP检查
 check_external_tcp() {
     local host=$1
     local port=$2
@@ -187,7 +193,7 @@ check_external_tcp() {
     fi
 }
 
-# 依赖检查函数
+#  自定义函数：依赖检查函数
 check_dependencies() {
     echo -e "${Font_Cyan}>>> 检查系统依赖...${Font_Suffix}"
     local deps=(curl openssl wget qrencode host base64 socat tar unzip vnstat gnupg2 dnsutils)
@@ -198,36 +204,76 @@ check_dependencies() {
     done
 }
 
-# 强制开启防火墙函数
+# 自定义函数：强制开启防火墙函数
 enable_firewall() {
     echo -e "${Font_Cyan}>>> 配置安全防火墙...${Font_Suffix}"
+    
+    # 确保安装了 ufw
     apt-get install -y ufw -qq
-    ufw allow 22/tcp
+
+    # 【自动识别】获取当前 sshd 实际监听的端口
+    local ssh_port=$(ss -tlnp | grep sshd | awk '{print $4}' | awk -F':' '{print $NF}' | head -n1)
+    
+    # 如果没识别到（极少数情况），则尝试从配置文件读取，最后默认 22
+    if [[ -z "$ssh_port" ]]; then
+        ssh_port=$(grep "^Port" /etc/ssh/sshd_config | awk '{print $2}' || echo "22")
+    fi
+
+    echo -e "${Font_Yellow}检测到当前 SSH 端口为: ${ssh_port}${Font_Suffix}"
+
+    # 设置默认策略
+    ufw default allow outgoing
+    ufw default deny incoming
+
+    # 【关键】放行识别到的 SSH 端口，并开启防爆破限速
+    ufw limit "${ssh_port}/tcp" comment 'SSH-Port-Auto-Detected'
+
+    # 放行业务端口
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw allow 443/udp
-    # 使用 --force 避免交互，直接开启
-    ufw --force enable
+
+    # 强制激活
+    echo "y" | ufw enable
+    
+    echo -e "${Font_Green}[OK] 防火墙已启动，已自动放行 SSH 端口 ${ssh_port}。${Font_Suffix}"
 }
-# ====================================================
+
+
+# 自定义函数：时区检查函数
+check_and_set_timezone() {
+    local current_tz=$(timedatectl | grep "Time zone" | awk '{print $3}' 2>/dev/null || date +%Z)
+    local current_time=$(date "+%Y-%m-%d %H:%M:%S")
+
+    echo -e "${Font_Cyan}当前系统时间: ${Font_Green}${current_time}${Font_Suffix}"
+    echo -e "   当前时区 : ${Font_Green}${current_tz}${Font_Suffix}"
+
+    if [[ "$current_tz" == "Asia/Shanghai" ]]; then
+        echo -e "${Font_Green}   状态确认 : 已是 Asia/Shanghai 时区，无需修改。${Font_Suffix}"
+    else
+        echo -e "${Font_Yellow}   建议提示 : 当前非上海时区，建议修改以确保日志时间准确。${Font_Suffix}"
+        read -p ">>> 是否修改时区为 Asia/Shanghai？(y/N): " change_tz
+        if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
+            timedatectl set-timezone Asia/Shanghai 2>/dev/null || (rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime)
+            echo -e "${Font_Green}[OK] 时区已成功修改为 Asia/Shanghai，当前时间: $(date "+%Y-%m-%d %H:%M:%S")${Font_Suffix}"
+        fi
+    fi
+}
+
+
+# ------------- 自定义函数区域 END -------------
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
     check_root
     setup_xray_user
+
+    # === 时区处理（改为可选，不再强制）===
+    check_and_set_timezone
+
     echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
     apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
     dpkg --configure -a
-
-    # === 时区处理（改为可选，不再强制）===
-    echo -e "${Font_Red}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
-    read -r change_tz
-    if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
-        rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-        echo -e "${Font_Green}[OK] 时区已修改为 Asia/Shanghai${Font_Suffix}"
-    else
-        echo -e "${Font_Yellow}已跳过时区修改${Font_Suffix}"
-    fi
 
     # 调用优化后的防火墙函数
     enable_firewall
