@@ -77,6 +77,60 @@ check_external_tcp() {
 get_random_dest() {
     echo "${REALITY_DEST_OPTIONS[$((RANDOM % ${#REALITY_DEST_OPTIONS[@]}))]}"
 }
+# 自定义函数：强制开启防火墙函数
+enable_firewall() {
+    echo -e "${Font_Cyan}>>> 配置安全防火墙...${Font_Suffix}"
+    
+    # 确保安装了 ufw
+    apt-get install -y ufw -qq
+
+    # 【自动识别】获取当前 sshd 实际监听的端口
+    local ssh_port=$(ss -tlnp | grep sshd | awk '{print $4}' | awk -F':' '{print $NF}' | head -n1)
+    
+    # 如果没识别到（极少数情况），则尝试从配置文件读取，最后默认 22
+    if [[ -z "$ssh_port" ]]; then
+        ssh_port=$(grep "^Port" /etc/ssh/sshd_config | awk '{print $2}' || echo "22")
+    fi
+
+    echo -e "${Font_Yellow}检测到当前 SSH 端口为: ${ssh_port}${Font_Suffix}"
+
+    # 设置默认策略
+    ufw default allow outgoing
+    ufw default deny incoming
+
+    # 【关键】放行识别到的 SSH 端口，并开启防爆破限速
+    ufw limit "${ssh_port}/tcp" comment 'SSH-Port-Auto-Detected'
+
+    # 放行业务端口
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 443/udp
+
+    # 强制激活
+    echo "y" | ufw enable
+    
+    echo -e "${Font_Green}[OK] 防火墙已启动，已自动放行 SSH 端口 ${ssh_port}。${Font_Suffix}"
+}
+
+# 自定义函数：时区检查函数
+check_and_set_timezone() {
+    local current_tz=$(timedatectl | grep "Time zone" | awk '{print $3}' 2>/dev/null || date +%Z)
+    local current_time=$(date "+%Y-%m-%d %H:%M:%S")
+
+    echo -e "${Font_Cyan}当前系统时间: ${Font_Green}${current_time}${Font_Suffix}"
+    echo -e "   当前时区 : ${Font_Green}${current_tz}${Font_Suffix}"
+
+    if [[ "$current_tz" == "Asia/Shanghai" ]]; then
+        echo -e "${Font_Green}   状态确认 : 已是 Asia/Shanghai 时区，无需修改。${Font_Suffix}"
+    else
+        echo -e "${Font_Yellow}   建议提示 : 当前非上海时区，建议修改以确保日志时间准确。${Font_Suffix}"
+        read -p ">>> 是否修改时区为 Asia/Shanghai？(y/N): " change_tz
+        if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
+            timedatectl set-timezone Asia/Shanghai 2>/dev/null || (rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime)
+            echo -e "${Font_Green}[OK] 时区已成功修改为 Asia/Shanghai，当前时间: $(date "+%Y-%m-%d %H:%M:%S")${Font_Suffix}"
+        fi
+    fi
+}
 
 # --- 1. 环境准备模块 ---
 preparation_stack() {
