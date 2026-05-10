@@ -300,9 +300,21 @@ enable_bbr() {
 # BBR 管理子菜单
 menu_bbr() {
     clear
-    local bbr_status
-    local current_algo=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')
+    # 1. 获取内核版本
+    local kernel_version=$(uname -r)
+    # 2. 获取当前拥塞控制算法
+    local current_algo=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}' 2>/dev/null || echo "未知")
     
+    # 3. 判定 BBRv3 兼容性 (内核 >= 6.4)
+    local v3_support="${Font_Red}不支持 v3${Font_Suffix}"
+    local ver_main=$(echo $kernel_version | cut -d. -f1)
+    local ver_sub=$(echo $kernel_version | cut -d. -f2)
+    if [ "$ver_main" -gt 6 ] || { [ "$ver_main" -eq 6 ] && [ "$ver_sub" -ge 4 ]; }; then
+        v3_support="${Font_Green}支持 v3${Font_Suffix}"
+    fi
+
+    # 4. 判定显示状态
+    local bbr_status
     if [[ "$current_algo" == "bbr" ]]; then
         bbr_status="${Font_Green}运行中 (BBR/v1/v3)${Font_Suffix}"
     elif [[ "$current_algo" == "bbrplus" ]]; then
@@ -311,21 +323,23 @@ menu_bbr() {
         bbr_status="${Font_Red}未开启 ($current_algo)${Font_Suffix}"
     fi
 
-    echo -e "${Font_Magenta}===================== BBR 网络加速管理 =====================${Font_Suffix}"
+    echo -e "${Font_Magenta}======================= BBR 网络加速管理 ======================${Font_Suffix}"
+    echo -e "   当前内核 : ${Font_Cyan}${kernel_version}${Font_Suffix} ($v3_support)"
     echo -e "   当前状态 : ${bbr_status}"
     echo -e "   当前算法 : ${Font_Cyan}${current_algo}${Font_Suffix}"
-    echo -e "${Font_Magenta}============================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     echo -e "  【1】 . 开启 BBR 原版 (v1 - 最稳定)"
-    echo -e "  【2】 . 开启 BBRv3 (内核 6.4+ 自动启用)"
+    echo -e "  【2】 . 开启 BBRv3 (需内核 6.4+)"
     echo -e "  【3】 . 开启 BBRplus (需更换内核，${Font_Red}有风险${Font_Suffix})"
     echo -e "  【4】 . 关闭 BBR (恢复系统默认 cubic)"
     echo -e "  【q】 . 返回主菜单"
-    echo -e "${Font_Magenta}============================================================${Font_Suffix}"
+    echo -e "${Font_Magenta}===========================================================${Font_Suffix}"
     read -p "请选择: " bbr_num
 
     case "$bbr_num" in
-        1) enable_bbr_v1; read -p "按回车键继续..."; menu_bbr ;;
-        2) enable_bbr_v3; read -p "按回车键继续..."; menu_bbr ;;
+        1|2) # v1 和 v3 在操作上是统一的，取决于内核版本
+            enable_bbr_native
+            read -p "按回车键继续..."; menu_bbr ;;
         3) install_bbr_plus; read -p "按回车键继续..."; menu_bbr ;;
         4) disable_bbr; read -p "按回车键继续..."; menu_bbr ;;
         q|Q) main_menu ;;
@@ -333,13 +347,12 @@ menu_bbr() {
     esac
 }
 
-# 开启 BBR v1
-enable_bbr_v1() {
-    echo -e "${Font_Cyan}>>> 正在配置 BBRv1...${Font_Suffix}"
+# 统筹开启内核原生 BBR (包含 v1/v3)
+enable_bbr_native() {
+    echo -e "${Font_Cyan}>>> 正在配置内核 BBR 参数...${Font_Suffix}"
     
-    if [ ! -f /etc/sysctl.conf ]; then
-        touch /etc/sysctl.conf
-    fi
+    # 修复：确保文件存在，防止 sed 报错
+    [ ! -f /etc/sysctl.conf ] && touch /etc/sysctl.conf
 
     sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
     sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
@@ -347,19 +360,7 @@ enable_bbr_v1() {
     echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
     
     sysctl -p >/dev/null 2>&1
-    echo -e "${Font_Green}[OK] BBRv1 已成功开启。${Font_Suffix}"
-}
-
-# 开启 BBRv3
-enable_bbr_v3() {
-    echo -e "${Font_Cyan}>>> 正在配置 BBRv3...${Font_Suffix}"
-    # 在 Debian 12+ / Ubuntu 24+ 的新内核中，开启 bbr 即可享受新版本特性
-    sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
-    sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
-    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
-    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
-    sysctl -p >/dev/null 2>&1
-    echo -e "${Font_Green}[OK] BBRv3 指令已发送。若内核版本高于 6.4，系统将自动运行 v3。${Font_Suffix}"
+    echo -e "${Font_Green}[OK] BBR 指令已发送。如果内核版本 >= 6.4，将自动以 v3 运行。${Font_Suffix}"
 }
 
 # 开启 BBRplus
@@ -377,21 +378,16 @@ install_bbr_plus() {
 disable_bbr() {
     echo -e "${Font_Cyan}>>> 正在恢复默认拥塞控制算法 (cubic)...${Font_Suffix}"
     
-    # 关键修复：如果文件不存在，则创建一个空文件
-    if [ ! -f /etc/sysctl.conf ]; then
-        touch /etc/sysctl.conf
-    fi
+    # 修复：确保文件存在
+    [ ! -f /etc/sysctl.conf ] && touch /etc/sysctl.conf
 
-    # 清理旧配置
     sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
     sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
-    
-    # 写入默认值
     echo "net.core.default_qdisc=fq_codel" >> /etc/sysctl.conf
     echo "net.ipv4.tcp_congestion_control=cubic" >> /etc/sysctl.conf
     
     sysctl -p >/dev/null 2>&1
-    echo -e "${Font_Yellow}[OK] BBR 已关闭，系统已恢复默认配置。${Font_Suffix}"
+    echo -e "${Font_Yellow}[OK] BBR 已关闭。${Font_Suffix}"
 }
 
 # ------------- BBR 管理子菜单 START -------------
@@ -1494,7 +1490,7 @@ main_menu() {
     echo -e "${Font_Red}===========================================================${Font_Suffix}"
     echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.10.18.45（release）    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.18.58（release）    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------------------"
