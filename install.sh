@@ -70,28 +70,32 @@ esac
 echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
 
 # 自定义函数：时区检测与修改函数
+# ==================== 时区检测与修改函数 ====================
 fix_timezone() {
     # 获取当前系统时区
     local CURRENT_TZ
     CURRENT_TZ=$(timedatectl show --property=Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || ls -l /etc/localtime | awk -F'zoneinfo/' '{print $2}')
     
+    # 获取当前系统时间
+    local CURRENT_TIME
+    CURRENT_TIME=$(date "+%Y-%m-%d %H:%M:%S")
+
     echo -e "${Font_Cyan}>>> 当前系统时区: ${Font_Magenta}${CURRENT_TZ}${Font_Suffix}"
+    echo -e "${Font_Cyan}>>> 当前系统时间: ${Font_Magenta}${CURRENT_TIME}${Font_Suffix}"
 
     if [[ "$CURRENT_TZ" != "Asia/Shanghai" ]]; then
         echo -e "${Font_Red}⚠️  检测到当前不是上海时区，为确保 Xray 认证及日志时间准确，建议修改。${Font_Suffix}"
         read -p "是否修改时区为 Asia/Shanghai？(y/N): " change_tz
         if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
             echo -e "${Font_Cyan}正在修改时区...${Font_Suffix}"
-            # 优先使用 timedatectl
             if command -v timedatectl &>/dev/null; then
                 timedatectl set-timezone Asia/Shanghai
             else
-                # 回退方案：手动删除并重新链接
                 rm -f /etc/localtime
                 ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
             fi
             echo -e "${Font_Green}[OK] 时区已成功修改为 Asia/Shanghai${Font_Suffix}"
-            echo -e "${Font_Cyan}当前系统时间: $(date)${Font_Suffix}"
+            echo -e "${Font_Cyan}修改后系统时间: $(date "+%Y-%m-%d %H:%M:%S")${Font_Suffix}"
         else
             echo -e "${Font_Yellow}已跳过时区修改，保持当前时区。${Font_Suffix}"
         fi
