@@ -25,10 +25,10 @@ trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行失败！命令: $BA
 is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-PRESET_DOMAIN=""
+PRESET_DOMAIN="test.myvpsworld.top"
 XRAY_VERSION="26.5.3"
 CADDY_VERSION="2.11.2"
-REALITY_DEST_OPTIONS=("www.microsoft.com" "www.apple.com" "www.amazon.com" "www.cloudflare.com" "login.microsoftonline.com")
+REALITY_DEST_OPTIONS=("www.microsoft.com" "www.apple.com" "www.amazon.com" "www.cloudflare.com" "www.bing.com")
 
 # ====================== 基础函数 ======================
 check_root() { [ "$EUID" -eq 0 ] || { echo -e "${Font_Red}必须 root 权限运行！${Font_Suffix}"; exit 1; }; }
@@ -165,6 +165,16 @@ check_and_set_timezone() {
     fi
 }
 
+#  自定义函数：依赖检查函数
+check_dependencies() {
+    echo -e "${Font_Cyan}>>> 检查系统依赖...${Font_Suffix}"
+    local deps=(curl openssl wget qrencode host base64 socat tar unzip vnstat gnupg2 dnsutils)
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            apt-get install -y "$dep" -qq
+        fi
+    done
+}
 # --- 1. 环境准备模块 ---
 preparation_stack() {
     check_root
@@ -546,7 +556,68 @@ EOF
 
 
 # ====================== TLS 协议（使用通用函数） ======================
-gen_vless_ws()      { generate_tls_protocol "VLESS-WS-TLS"      "vless"  "ws"    10001 "" "show_vless_ws_info"; }
+#gen_vless_ws()      { generate_tls_protocol "VLESS-WS-TLS"      "vless"  "ws"    10001 "" "show_vless_ws_info"; }
+gen_vless_ws() {
+    check_domain
+    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
+    [[ -z "$domain" ]] && { echo -e "${Font_Red}[ERROR] domain 为空${Font_Suffix}"; exit 1; }
+
+    install_caddy
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local path=$(openssl rand -hex 6)
+    local port=10001
+
+    check_port "$port"
+    echo -e "${Font_Cyan}正在配置 VLESS-WS-TLS (端口 ${port})...${Font_Suffix}"
+
+    # 确保目录存在
+    mkdir -p "$(dirname "$config_path")"
+
+    # 生成 Xray 配置
+    cat > "$config_path" <<EOF
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port,
+        "listen": "127.0.0.1",
+        "protocol": "vless",
+        "settings": {
+            "clients": [{ "id": "$uuid" }],
+            "decryption": "none"
+        },
+        "streamSettings": {
+            "network": "ws",
+            "wsSettings": { "path": "/$path" }
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    # 生成 Caddy 配置
+    cat > /etc/caddy/Caddyfile <<EOF
+$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy /$path 127.0.0.1:$port
+}
+EOF
+
+    # 验证 + 重启
+    check_json "$config_path"
+    check_caddy
+
+    restart_service caddy
+    restart_service xray
+
+    sleep 2
+    check_service_alive "$port" "VLESS-WS-TLS"
+    check_external_tcp "$domain"
+
+    show_vless_ws_info "$uuid" "$domain" "$path"
+}
+
 gen_vless_grpc()    { generate_tls_protocol "VLESS-gRPC-TLS"    "vless"  "grpc"  10002 "" "show_vless_grpc_info"; }
 gen_vless_xhttp()   { generate_tls_protocol "VLESS-XHTTP-TLS"   "vless"  "xhttp" 10003 "" "show_vless_xhttp_info"; }
 gen_trojan_ws()     { generate_tls_protocol "Trojan-WS-TLS"     "trojan" "ws"    10004 '"password": "$id"' "show_trojan_info"; }
