@@ -260,7 +260,38 @@ check_and_set_timezone() {
     fi
 }
 
-
+# 自定义函数：开启BBR
+enable_bbr() {
+    echo -e "${Font_Cyan}>>> 检查并开启 BBR 网络加速...${Font_Suffix}"
+    
+    # 1. 判断当前是否已经开启 BBR
+    if sysctl net.ipv4.tcp_congestion_control | grep -q "bbr"; then
+        echo -e "${Font_Green}[INFO] BBR 加速已在运行中，无需重复开启。${Font_Suffix}"
+    else
+        echo -e "${Font_Yellow}[ACTION] 正在写入 BBR 配置...${Font_Suffix}"
+        
+        # 2. 备份 sysctl.conf 以防万一
+        cp /etc/sysctl.conf /etc/sysctl.conf.bak
+        
+        # 3. 写入内核参数
+        # 使用 sed 确保如果文件中已有相关项则修改，没有则追加，避免重复堆叠
+        sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
+        sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
+        
+        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+        
+        # 4. 生效配置
+        sysctl -p >/dev/null 2>&1
+        
+        # 5. 最终验证
+        if sysctl net.ipv4.tcp_congestion_control | grep -q "bbr"; then
+            echo -e "${Font_Green}[OK] BBR 加速已成功开启！${Font_Suffix}"
+        else
+            echo -e "${Font_Red}[ERROR] BBR 开启失败，请检查内核是否支持。${Font_Suffix}"
+        fi
+    fi
+}
 # ------------- 自定义函数区域 END -------------
 
 # --- 1. 环境准备模块 ---
@@ -275,10 +306,13 @@ preparation_stack() {
     apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
     dpkg --configure -a
 
-    # 调用优化后的防火墙函数
+    # 调用防火墙策略函数
     enable_firewall
-
-    # 调用优化后的依赖检查
+    
+    # 调用开启BBR函数
+    enable_bbr
+    
+    # 调用依赖检查函数
     check_dependencies
 
     systemctl enable vnstat --now 2>/dev/null || true
