@@ -21,10 +21,7 @@
 #   2026/05/08：增加各种验证、排错、去掉apt lock暴力解决，修改安全性配置。
 #   2026/05/09：优化代码，增加安装过程中可能出现的错误提示。
 # ====================================================
-# ==================== 严格模式 + 错误追踪 ====================
-set -euo pipefail
-# 捕获错误，打印行号和出错命令
-trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行执行失败！\n出错命令: $BASH_COMMAND${Font_Suffix}"' ERR
+
 # 终端颜色定义
 Font_Black="\033[30m"   # 黑色
 Font_Red="\033[31m"     # 红色
@@ -35,27 +32,20 @@ Font_Magenta="\033[35m" # 洋红色/紫色
 Font_Cyan="\033[36m"    # 青色
 Font_White="\033[37m"   # 白色
 Font_Suffix="\033[0m"   # 重置颜色/颜色结尾
+# ==================== 严格模式 + 错误追踪 ====================
+set -euo pipefail
+# 捕获错误，打印行号和出错命令
+trap 'echo -e "\n${Font_Red}[ERROR] 脚本在第 $LINENO 行执行失败！\n出错命令: $BASH_COMMAND${Font_Suffix}"' ERR
 
-# 变量初始化
+
+# ==================== 初始化变量区域 ====================
 is_core="xray"
 conf_dir="/usr/local/etc/xray"
 config_path="${conf_dir}/config.json"
-PRESET_DOMAIN="vc.myvpsworld.top" 
+PRESET_DOMAIN="test.myvpsworld.top" 
 XRAY_VERSION="26.5.3"   #最新版 latest
 CADDY_VERSION="2.11.2"
 FIX_VER=1 #1，锁定。0，最新版#
-
-# ==================== 架构检测 ====================
-ARCH=$(uname -m)
-case ${ARCH} in
-    x86_64)   XRAY_ARCH="64" ;;
-    aarch64)  XRAY_ARCH="arm64" ;;
-    armv7l)   XRAY_ARCH="arm32-v7a" ;;
-    armv8l)   XRAY_ARCH="arm64" ;;
-    *)        echo -e "${Font_Red}不支持的架构: ${ARCH}${Font_Suffix}"; exit 1 ;;
-esac
-
-echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
 # ==================== Reality 伪装域名配置（随机选择） ====================
 REALITY_DEST_OPTIONS=(
     "www.microsoft.com"
@@ -66,6 +56,49 @@ REALITY_DEST_OPTIONS=(
     "www.bing.com"
     "account.microsoft.com"
 )
+# ==================== 自定义函数区域 ====================
+# 自定义函数：架构检测
+ARCH=$(uname -m)
+case ${ARCH} in
+    x86_64)   XRAY_ARCH="64" ;;
+    aarch64)  XRAY_ARCH="arm64" ;;
+    armv7l)   XRAY_ARCH="arm32-v7a" ;;
+    armv8l)   XRAY_ARCH="arm64" ;;
+    *)        echo -e "${Font_Red}不支持的架构: ${ARCH}${Font_Suffix}"; exit 1 ;;
+esac
+
+echo -e "${Font_Cyan}检测到系统架构: ${ARCH} (${XRAY_ARCH})${Font_Suffix}"
+
+# 自定义函数：时区检测与修改函数
+fix_timezone() {
+    # 获取当前系统时区
+    local CURRENT_TZ
+    CURRENT_TZ=$(timedatectl show --property=Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || ls -l /etc/localtime | awk -F'zoneinfo/' '{print $2}')
+    
+    echo -e "${Font_Cyan}>>> 当前系统时区: ${Font_Magenta}${CURRENT_TZ}${Font_Suffix}"
+
+    if [[ "$CURRENT_TZ" != "Asia/Shanghai" ]]; then
+        echo -e "${Font_Red}⚠️  检测到当前不是上海时区，为确保 Xray 认证及日志时间准确，建议修改。${Font_Suffix}"
+        read -p "是否修改时区为 Asia/Shanghai？(y/N): " change_tz
+        if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
+            echo -e "${Font_Cyan}正在修改时区...${Font_Suffix}"
+            # 优先使用 timedatectl
+            if command -v timedatectl &>/dev/null; then
+                timedatectl set-timezone Asia/Shanghai
+            else
+                # 回退方案：手动删除并重新链接
+                rm -f /etc/localtime
+                ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+            fi
+            echo -e "${Font_Green}[OK] 时区已成功修改为 Asia/Shanghai${Font_Suffix}"
+            echo -e "${Font_Cyan}当前系统时间: $(date)${Font_Suffix}"
+        else
+            echo -e "${Font_Yellow}已跳过时区修改，保持当前时区。${Font_Suffix}"
+        fi
+    else
+        echo -e "${Font_Green}[OK] 系统时区已是 Asia/Shanghai，无需修改。${Font_Suffix}"
+    fi
+}
 
 # 随机选择函数
 get_random_dest() {
@@ -215,19 +248,13 @@ enable_firewall() {
 preparation_stack() {
     check_root
     setup_xray_user
+    # === 时区处理 ===
+    fix_timezone
+
+    # 处理apt锁问题    
     echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
     apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
     dpkg --configure -a
-
-    # === 时区处理（改为可选，不再强制）===
-    echo -e "${Font_Red}>>> 是否修改时区为 Asia/Shanghai？(y/N，默认不改)${Font_Suffix}"
-    read -r change_tz
-    if [[ "$change_tz" == "y" || "$change_tz" == "Y" ]]; then
-        rm -f /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-        echo -e "${Font_Green}[OK] 时区已修改为 Asia/Shanghai${Font_Suffix}"
-    else
-        echo -e "${Font_Yellow}已跳过时区修改${Font_Suffix}"
-    fi
 
     # 调用优化后的防火墙函数
     enable_firewall
@@ -1310,9 +1337,9 @@ main_menu() {
     
     OS_NAME=$(grep "PRETTY_NAME" /etc/os-release | cut -d '"' -f 2 2>/dev/null || echo "Linux")
     echo -e "${Font_Red}===============================================${Font_Suffix}"
-    echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/09   ${Font_Suffix}"
+    echo -e "${Font_Red}   作者：人生若只如初见，更新：2024/05/10   ${Font_Suffix}"
     echo -e "${Font_Red}   名称：xray 一键安装脚本    ${Font_Suffix}"
-    echo -e "${Font_Red}   版本号：v1.0.05.09.12.32    ${Font_Suffix}"
+    echo -e "${Font_Red}   版本号：v1.0.05.10.14.12    ${Font_Suffix}"
     echo -e "${Font_Red}   适用环境：Debian12/13、Ubuntu25/26    ${Font_Suffix}"
     echo -e "${Font_Red}   当前系统：${Font_Suffix}${Font_Green}$OS_NAME    ${Font_Suffix}"
     echo -e "-----------------------------------------------"
