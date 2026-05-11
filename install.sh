@@ -69,7 +69,6 @@ REALITY_DEST_OPTIONS=(
     "www.amazon.com"
     "www.cloudflare.com"
     "www.bing.com"
-    "account.microsoft.com"
 )
 # ------------- 全局变量定义区域 END -------------
 
