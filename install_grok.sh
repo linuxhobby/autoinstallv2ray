@@ -43,6 +43,10 @@ setup_xray_user() {
     chown -R xray:xray "$conf_dir" 2>/dev/null || true
 }
 
+common_tls_setup() {
+    install_caddy
+}
+
 restart_service() {
     systemctl restart "$1"
     systemctl is-active --quiet "$1" || { echo -e "${Font_Red}[ERROR] $1 启动失败${Font_Suffix}"; exit 1; }
@@ -556,38 +560,209 @@ EOF
 
 
 # ====================== TLS 协议（使用通用函数） ======================
-#gen_vless_ws()      { generate_tls_protocol "VLESS-WS-TLS"      "vless"  "ws"    10001 "" "show_vless_ws_info"; }
+# TLS 协议使用 common_tls_setup
 gen_vless_ws() {
     check_domain
-    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
-    [[ -z "$domain" ]] && { echo -e "${Font_Red}[ERROR] domain 为空${Font_Suffix}"; exit 1; }
-
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
     install_caddy
+    
+    common_tls_setup
     local uuid=$(cat /proc/sys/kernel/random/uuid)
     local path=$(openssl rand -hex 6)
     local port=10001
+    check_port $port
 
-    check_port "$port"
-    echo -e "${Font_Cyan}正在配置 VLESS-WS-TLS (端口 ${port})...${Font_Suffix}"
+    echo -e "${Font_Cyan}正在配置 VLESS-WS-TLS (Caddy 反代)...${Font_Suffix}"
 
-    # 确保目录存在
-    mkdir -p "$(dirname "$config_path")"
-
-    # 生成 Xray 配置
-    cat > "$config_path" <<EOF
+    cat <<EOF > "$config_path"
 {
     "log": { "loglevel": "warning" },
     "inbounds": [{
-        "port": $port,
-        "listen": "127.0.0.1",
+        "port": $port, 
+        "listen": "127.0.0.1", 
         "protocol": "vless",
-        "settings": {
-            "clients": [{ "id": "$uuid" }],
-            "decryption": "none"
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
         },
-        "streamSettings": {
-            "network": "ws",
-            "wsSettings": { "path": "/$path" }
+        "streamSettings": { 
+            "network": "ws", 
+            "wsSettings": { "path": "/$path" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy /$path 127.0.0.1:$port
+}" > /etc/caddy/Caddyfile
+
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
+    check_service_alive $port "VLESS-WS"    
+    show_vless_ws_info "$uuid" "$domain" "$path"
+}
+
+gen_vless_grpc() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
+    
+    common_tls_setup
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local serviceName=$(openssl rand -hex 4)
+    local port=10002
+    check_port $port
+
+    echo -e "${Font_Cyan}正在配置 VLESS-gRPC-TLS...${Font_Suffix}"
+
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "grpc", 
+            "grpcSettings": { "serviceName": "$serviceName" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}" > /etc/caddy/Caddyfile
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
+    check_service_alive $port "VLESS-gRPC"
+    check_external_tcp "$domain" 443    
+    show_vless_grpc_info "$uuid" "$domain" "$serviceName"
+}
+
+gen_vless_xhttp() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy    
+    common_tls_setup
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local path=$(openssl rand -hex 6)
+    local port=10003
+    check_port $port
+
+    echo -e "${Font_Cyan}正在配置 VLESS-XHTTP-TLS...${Font_Suffix}"
+
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "vless",
+        "settings": { 
+            "clients": [{ "id": "$uuid" }], 
+            "decryption": "none" 
+        },
+        "streamSettings": { 
+            "network": "xhttp", 
+            "xhttpSettings": { 
+                "path": "/$path"
+            } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy 127.0.0.1:$port
+}" > /etc/caddy/Caddyfile
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service $is_core
+    echo -e "${Font_Cyan}请稍等，生成中...${Font_Suffix}"
+    sleep 2
+    check_service_alive $port "VLESS-XHTTP"
+    check_external_tcp "$domain" 443        
+    show_vless_xhttp_info "$uuid" "$domain" "$path"
+}
+
+gen_trojan_ws() {
+    check_domain
+    # 确保从临时文件读取域名，并定义为局部变量
+    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
+    [[ -z "$domain" ]] && {
+        echo -e "${Font_Red}[ERROR] domain 为空，请检查域名配置${Font_Suffix}"
+        exit 1
+    }
+    
+    install_caddy
+    common_tls_setup
+    
+    # 密码处理
+    local pass
+    read -p "请输入 Trojan 密码 (默认随机): " pass
+    [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
+    
+    local path=$(openssl rand -hex 6)
+    local port=10004
+    check_port $port
+
+    # 生成 Xray 配置
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "trojan",
+        "settings": { 
+            "clients": [{ "password": "$pass" }] 
+        },
+        "streamSettings": { 
+            "network": "ws", 
+            "wsSettings": { "path": "/$path" } 
         }
     }],
     "outbounds": [{ "protocol": "freedom" }]
@@ -595,35 +770,212 @@ gen_vless_ws() {
 EOF
 
     # 生成 Caddy 配置
-    cat > /etc/caddy/Caddyfile <<EOF
-$domain {
+    echo "$domain {
     tls {
         protocols tls1.2 tls1.3
     }
-    reverse_proxy /$path 127.0.0.1:$port
+    reverse_proxy /$path localhost:$port
+}" > /etc/caddy/Caddyfile
+
+    # 校验与重启
+    check_caddy
+    check_json "$config_path"
+    restart_service caddy
+    restart_service "$is_core"  # 确保 is_core 变量已定义，通常是 xray
+    
+    echo -e "${Font_Cyan}请稍等，验证服务状态中...${Font_Suffix}"
+    sleep 2
+    check_service_alive $port "Trojan-WS"
+    check_external_tcp "$domain" 443       
+    
+    # 调用展示函数：传入所有必要参数
+    show_trojan_info "ws" "$pass" "$domain" "$path"
+}
+
+gen_trojan_grpc() {
+    check_domain
+    # 显式获取域名，防止严格模式报错
+    local domain=$(cat /tmp/domain 2>/dev/null || echo "")
+    [[ -z "$domain" ]] && {
+        echo -e "${Font_Red}[ERROR] domain 为空，请检查域名配置${Font_Suffix}"
+        exit 1
+    }
+    
+    install_caddy 
+    common_tls_setup
+    
+    local pass
+    read -p "请输入 Trojan 密码 (默认随机): " pass
+    [[ -z "$pass" ]] && pass=$(openssl rand -hex 6)
+    
+    local serviceName=$(openssl rand -hex 4)
+    local port=10005
+    check_port $port
+
+    echo -e "${Font_Cyan}正在配置 Trojan-gRPC-TLS...${Font_Suffix}"
+
+    # 生成 Xray 配置
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port, 
+        "listen": "127.0.0.1", 
+        "protocol": "trojan",
+        "settings": { 
+            "clients": [{ "password": "$pass" }] 
+        },
+        "streamSettings": { 
+            "network": "grpc", 
+            "grpcSettings": { "serviceName": "$serviceName" } 
+        }
+    }],
+    "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
 
-    # 验证 + 重启
-    check_json "$config_path"
+    # 生成 Caddy 配置 (注意：gRPC 需要 h2c 模式)
+    echo "$domain {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}" > /etc/caddy/Caddyfile
+
     check_caddy
-
+    check_json "$config_path"
+    
+    # 启动服务
     restart_service caddy
-    restart_service xray
-
+    restart_service "$is_core"
+    
+    echo -e "${Font_Cyan}请稍等，验证服务状态中...${Font_Suffix}"
     sleep 2
-    check_service_alive "$port" "VLESS-WS-TLS"
-    check_external_tcp "$domain"
-
-    show_vless_ws_info "$uuid" "$domain" "$path"
+    check_service_alive $port "Trojan-gRPC"
+    check_external_tcp "$domain" 443      
+    
+    # 【核心修改】显式传参给信息展示函数
+    show_trojan_info "grpc" "$pass" "$domain" "$serviceName"
 }
 
-gen_vless_grpc()    { generate_tls_protocol "VLESS-gRPC-TLS"    "vless"  "grpc"  10002 "" "show_vless_grpc_info"; }
-gen_vless_xhttp()   { generate_tls_protocol "VLESS-XHTTP-TLS"   "vless"  "xhttp" 10003 "" "show_vless_xhttp_info"; }
-gen_trojan_ws()     { generate_tls_protocol "Trojan-WS-TLS"     "trojan" "ws"    10004 '"password": "$id"' "show_trojan_info"; }
-gen_trojan_grpc()   { generate_tls_protocol "Trojan-gRPC-TLS"   "trojan" "grpc"  10005 '"password": "$id"' "show_trojan_info"; }
-gen_vmess_ws()      { generate_tls_protocol "VMess-WS-TLS"      "vmess"  "ws"    10001 "" "show_vmess_ws_info"; }
-gen_vmess_grpc()    { generate_tls_protocol "VMess-gRPC-TLS"    "vmess"  "grpc"  10002 "" "show_vmess_grpc_info"; }
+gen_vmess_ws() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
+    common_tls_setup
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local path=$(openssl rand -hex 6)
+    local port=10001
+    check_port $port
+    
+    UUID=$uuid
+    WPATH=$path
+    DOMAIN=$domain
+
+    echo -e "${Font_Cyan}正在配置 VMess-WS-TLS...${Font_Suffix}"
+
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port,
+        "listen": "127.0.0.1",
+        "protocol": "vmess",
+        "settings": {
+            "clients": [{"id": "$UUID"}]
+        },
+        "streamSettings": {
+            "network": "ws",
+            "wsSettings": {"path": "/$WPATH"}
+        }
+    }],
+    "outbounds": [{"protocol": "freedom"}]
+}
+EOF
+
+    cat <<EOF > /etc/caddy/Caddyfile
+$DOMAIN {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy /$WPATH 127.0.0.1:$port
+}
+EOF
+    check_caddy
+    check_json "$config_path"
+    restart_service xray
+    restart_service caddy
+    check_service_alive $port "VMess-WS"
+    check_external_tcp "$domain" 443      
+    show_vmess_ws_info
+}
+
+gen_vmess_grpc() {
+    check_domain
+    domain="$(cat /tmp/domain 2>/dev/null || echo "")"
+    [[ -z "$domain" ]] && {
+        echo "[ERROR] domain 为空"
+        exit 1
+    }
+    install_caddy
+    common_tls_setup
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local serviceName=$(openssl rand -hex 6)
+    local port=10002
+    check_port $port
+    UUID=$uuid
+    WPATH=$serviceName
+    DOMAIN=$domain
+
+    echo -e "${Font_Cyan}正在配置 VMess-gRPC-TLS...${Font_Suffix}"
+
+    cat <<EOF > "$config_path"
+{
+    "log": { "loglevel": "warning" },
+    "inbounds": [{
+        "port": $port,
+        "listen": "127.0.0.1",
+        "protocol": "vmess",
+        "settings": {
+            "clients": [{"id": "$UUID"}]
+        },
+        "streamSettings": {
+            "network": "grpc",
+            "grpcSettings": {"serviceName": "$WPATH"}
+        }
+    }],
+    "outbounds": [{"protocol": "freedom"}]
+}
+EOF
+
+    cat <<EOF > /etc/caddy/Caddyfile
+$DOMAIN {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy localhost:$port {
+        transport http {
+            versions h2c
+        }
+    }
+}
+EOF
+    check_caddy
+    check_json "$config_path"
+    restart_service xray
+    restart_service caddy
+    check_service_alive $port "VMess-gRPC"
+    check_external_tcp "$domain" 443
+    show_vmess_grpc_info
+}
 
 # ====================== 其他必要函数（check_domain、install_caddy、展示函数等） ======================
 # ------------------------------------------------ 信息展示模块（完全保留）------------------------------------------------
