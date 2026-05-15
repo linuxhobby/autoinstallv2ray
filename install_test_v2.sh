@@ -425,9 +425,19 @@ preparation_stack() {
     fi
 
     echo -e "${Font_Cyan}>>> 正在处理 apt 锁...${Font_Suffix}"
-    apt-get -o DPkg::Lock::Timeout=180 update --allow-releaseinfo-change -qq || true
-    dpkg --configure -a
-
+    # 循环等待锁释放，最多等待 3 分钟
+    local wait_time=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        if [ $wait_time -ge 180 ]; then
+            echo -e "${Font_Red}[错误] apt 锁占用超时 (3分钟)，请手动重启服务器或检查后台更新进程。${Font_Suffix}"
+            exit 1
+        fi
+        echo -e "${Font_Yellow}检测到后台正在运行更新进程，等待锁释放 ($wait_time/180s)...${Font_Suffix}"
+        sleep 5
+        ((wait_time+=5))
+    done
+    dpkg --configure -a || true
+    apt-get update --allow-releaseinfo-change -qq || true
     # 调用防火墙策略函数
     enable_firewall
     
@@ -656,24 +666,27 @@ gen_vless_reality_unified() {
 
     # 2. 动态生成配置核心差异
     local network="tcp"
-    local flow='"flow": "xtls-rprx-vision",'
+    local client_settings='"id": "'$uuid'"'
     local xhttp_config=""
 
-    if [ "$mode" == "2" ]; then
+    if [ "$mode" == "1" ]; then
+        # Vision 模式：需要在 id 后面补上逗号和 flow
+        client_settings='"id": "'$uuid'", "flow": "xtls-rprx-vision"'
+    elif [ "$mode" == "2" ]; then
+        # xhttp 模式
         network="xhttp"
-        flow=""  # xhttp 模式不使用 vision 流控
         xhttp_config='"xhttpSettings": { "path": "/'$path'", "mode": "auto" },'
     fi
 
     # 3. 写入配置文件
-    cat <<EOF > "$config_path"
+cat <<EOF > "$config_path"
 {
     "log": { "loglevel": "warning" },
     "inbounds": [{
         "port": 443,
         "protocol": "vless",
         "settings": {
-            "clients": [{ "id": "$uuid" $flow }],
+            "clients": [{ $client_settings }],
             "decryption": "none"
         },
         "streamSettings": {
