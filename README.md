@@ -49,7 +49,8 @@ wget -N https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/main/ins
 
 
 ## 🖼 安装成功后信息展示
-<img width="770" height="811" alt="image" src="https://github.com/user-attachments/assets/039947ab-2bdb-40c4-8eb4-6e9fd215ece0" />
+<img width="715" height="595" alt="image" src="https://github.com/user-attachments/assets/df0ccc71-d692-4360-bed2-c6c3a4b1208f" />
+
 
 ---
 # 🔗 Xray 协议矩阵技术特性详解
