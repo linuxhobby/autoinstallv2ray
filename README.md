@@ -90,5 +90,5 @@ wget -N https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/main/ins
 
 测试版链接：
 ```
-curl -Ls https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/refs/heads/main/install_test_v2.sh | bash
+wget -N https://raw.githubusercontent.com/linuxhobby/xray-v2ray-install/main/install_test_v2.sh && chmod +x install_test_v2.sh && ./install_test_v2.sh
 ```
